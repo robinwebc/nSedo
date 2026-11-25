@@ -1,4 +1,5 @@
 import { Privacy, Role } from '@prisma/client';
+import { expandPublicUrl } from '../media/media.rules';
 
 export type PublicUserDto = {
   id: string;
@@ -8,6 +9,8 @@ export type PublicUserDto = {
   avatarUrl: string | null;
   coverUrl: string | null;
   bio: string | null;
+  location: string | null;
+  website: string | null;
   role: Role;
   privacy: Privacy;
   verifiedBadge: boolean;
@@ -20,6 +23,8 @@ export type OwnerUserDto = PublicUserDto & {
   emailVerified: boolean;
   phoneVerified: boolean;
   usernameChangedAt: Date | null;
+  birthday: Date | null;
+  onboardedAt: Date | null;
 };
 
 type PublicSource = {
@@ -30,6 +35,8 @@ type PublicSource = {
   avatarUrl: string | null;
   coverUrl: string | null;
   bio: string | null;
+  location?: string | null;
+  website?: string | null;
   role: Role;
   privacy: Privacy;
   verifiedBadge: boolean;
@@ -42,6 +49,8 @@ type OwnerSource = PublicSource & {
   emailVerified: boolean;
   phoneVerified: boolean;
   usernameChangedAt: Date | null;
+  birthday?: Date | null;
+  onboardedAt?: Date | null;
 };
 
 export function toPublicUser(user: PublicSource): PublicUserDto {
@@ -50,9 +59,11 @@ export function toPublicUser(user: PublicSource): PublicUserDto {
     userId: user.userId,
     username: user.username,
     displayName: user.displayName,
-    avatarUrl: user.avatarUrl,
-    coverUrl: user.coverUrl,
+    avatarUrl: expandPublicUrl(user.avatarUrl),
+    coverUrl: expandPublicUrl(user.coverUrl),
     bio: user.bio,
+    location: user.location ?? null,
+    website: user.website ?? null,
     role: user.role,
     privacy: user.privacy,
     verifiedBadge: user.verifiedBadge,
@@ -68,6 +79,8 @@ export function toOwnerUser(user: OwnerSource): OwnerUserDto {
     emailVerified: user.emailVerified,
     phoneVerified: user.phoneVerified,
     usernameChangedAt: user.usernameChangedAt,
+    birthday: user.birthday ?? null,
+    onboardedAt: user.onboardedAt ?? null,
   };
 }
 
@@ -79,6 +92,8 @@ export const publicUserSelect = {
   avatarUrl: true,
   coverUrl: true,
   bio: true,
+  location: true,
+  website: true,
   role: true,
   privacy: true,
   verifiedBadge: true,

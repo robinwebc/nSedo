@@ -2,7 +2,8 @@ import type { ReactNode } from 'react';
 
 export const colors = {
   ink: '#14202B',
-  ember: '#E4572E',
+  cobalt: '#2457E6',
+  cobaltBright: '#6E96FF',
   seed: '#F4C95D',
   mist: '#F6F3EE',
   pine: '#1F6F5B',
@@ -13,7 +14,7 @@ export function Logo({ size = 40 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" role="img" aria-label="nSedo">
       <rect width="64" height="64" rx="16" fill={colors.ink} />
-      <path d="M16 48V16h9l14 20V16h9v32h-9L25 28v20H16z" fill={colors.ember} />
+      <path d="M16 48V16h9l14 20V16h9v32h-9L25 28v20H16z" fill={colors.cobaltBright} />
       <circle cx="50" cy="14" r="4" fill={colors.seed} />
     </svg>
   );
@@ -35,7 +36,7 @@ export function Button({
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { kind?: 'primary' | 'ghost' }) {
   const cls =
     kind === 'primary'
-      ? 'bg-[#E4572E] text-white hover:bg-[#c94a25]'
+      ? 'bg-[#2457E6] text-white hover:bg-[#1C46C2]'
       : 'bg-transparent text-[#14202B] hover:bg-black/5';
   return (
     <button

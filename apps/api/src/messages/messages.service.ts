@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -6,6 +7,7 @@ import {
 import { type User } from '@prisma/client';
 import { AccessService } from '../common/access.service';
 import { toPublicUser } from '../common/user.serializer';
+import { expandPublicUrl, toStoredKey } from '../media/media.rules';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeBus } from '../realtime/realtime.bus';
@@ -115,13 +117,20 @@ export class MessagesService {
     return rows.map((row) => ({
       id: row.id,
       body: row.body,
+      mediaUrl: expandPublicUrl(row.mediaUrl),
+      mediaType: row.mediaType,
+      thumbnailUrl: expandPublicUrl(row.thumbnailUrl),
       createdAt: row.createdAt,
       readAt: row.readAt,
       sender: toPublicUser(row.sender),
     }));
   }
 
-  async send(me: User, conversationId: string, body: string) {
+  async send(
+    me: User,
+    conversationId: string,
+    input: { body?: string; mediaUrl?: string; mediaType?: string; thumbnailUrl?: string },
+  ) {
     await this.requireMember(conversationId, me.id);
     const participants = await this.prisma.conversationParticipant.findMany({
       where: { conversationId },
@@ -133,8 +142,19 @@ export class MessagesService {
         }
       }
     }
+    const text = input.body?.trim() ?? '';
+    if (!text && !input.mediaUrl) {
+      throw new BadRequestException('Write a message or attach a file');
+    }
     const message = await this.prisma.message.create({
-      data: { conversationId, senderId: me.id, body: body.trim() },
+      data: {
+        conversationId,
+        senderId: me.id,
+        body: text,
+        mediaUrl: toStoredKey(input.mediaUrl),
+        mediaType: input.mediaType,
+        thumbnailUrl: toStoredKey(input.thumbnailUrl),
+      },
       include: { sender: true },
     });
     await this.prisma.conversation.update({
@@ -145,6 +165,9 @@ export class MessagesService {
       id: message.id,
       conversationId,
       body: message.body,
+      mediaUrl: expandPublicUrl(message.mediaUrl),
+      mediaType: message.mediaType,
+      thumbnailUrl: expandPublicUrl(message.thumbnailUrl),
       createdAt: message.createdAt,
       readAt: message.readAt,
       sender: toPublicUser(message.sender),

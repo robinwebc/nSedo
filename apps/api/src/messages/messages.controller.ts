@@ -8,7 +8,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { type User } from '@prisma/client';
-import { IsString, Length, Matches } from 'class-validator';
+import { IsOptional, IsString, Length, Matches, ValidateIf } from 'class-validator';
 import { CurrentUser } from '../common/decorators';
 import { JwtAuthGuard } from '../common/guards';
 import { MessagesService } from './messages.service';
@@ -19,9 +19,23 @@ class OpenConversationDto {
 }
 
 class SendMessageDto {
+  @ValidateIf((value: SendMessageDto) => !value.mediaUrl)
   @IsString()
   @Length(1, 2000)
-  body!: string;
+  body?: string;
+
+  @IsOptional()
+  @Matches(/^(https?:\/\/\S+|(?:avatars|covers|posts|messages)\/[\w-]+\/[\w.-]+)$/)
+  mediaUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(1, 80)
+  mediaType?: string;
+
+  @IsOptional()
+  @Matches(/^(https?:\/\/\S+|(?:avatars|covers|posts|messages)\/[\w-]+\/[\w.-]+)$/)
+  thumbnailUrl?: string;
 }
 
 @Controller('conversations')
@@ -50,7 +64,7 @@ export class MessagesController {
     @Param('id') id: string,
     @Body() dto: SendMessageDto,
   ) {
-    return this.messages.send(user, id, dto.body);
+    return this.messages.send(user, id, dto);
   }
 
   @Post(':id/read')

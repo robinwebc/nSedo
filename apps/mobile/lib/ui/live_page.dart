@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../api.dart';
 import '../session.dart';
 import '../theme.dart';
+import 'live_room.dart';
 import 'widgets.dart';
 
 class LivePage extends StatefulWidget {
@@ -16,7 +17,6 @@ class LivePage extends StatefulWidget {
 class _LivePageState extends State<LivePage> {
   List<dynamic> rows = [];
   final title = TextEditingController();
-  final comment = TextEditingController();
   String? error;
   var loading = true;
 
@@ -48,7 +48,7 @@ class _LivePageState extends State<LivePage> {
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
-      color: ember,
+      color: brandAccent(context),
       onRefresh: load,
       child: ListView(
         padding: const EdgeInsets.all(space2),
@@ -59,13 +59,13 @@ class _LivePageState extends State<LivePage> {
             alignment: Alignment.centerRight,
             child: FilledButton(
               onPressed: () async {
-                try {
-                  await context.read<Session>().goLive(title.text.trim());
-                  title.clear();
-                  await load();
-                } catch (err) {
-                  if (mounted) setState(() => error = explainError(err));
-                }
+                final name = title.text.trim();
+                if (name.isEmpty) return;
+                title.clear();
+                await Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => LiveRoomPage(hosting: true, title: name)),
+                );
+                await load();
               },
               child: const Text('Go live'),
             ),
@@ -81,30 +81,11 @@ class _LivePageState extends State<LivePage> {
               title: Text(row['title'].toString()),
               subtitle: Text('@${(row['host'] as Map)['username']}'),
               trailing: TextButton(
-                onPressed: () async {
-                  comment.clear();
-                  await showDialog<void>(
-                    context: context,
-                    builder: (dialogContext) => AlertDialog(
-                      title: Text(row['title'].toString()),
-                      content: TextField(controller: comment, decoration: const InputDecoration(labelText: 'Comment')),
-                      actions: [
-                        TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Close')),
-                        TextButton(
-                          onPressed: () async {
-                            await context.read<Session>().api.send(
-                                  'POST',
-                                  '/live/${row['id']}/comments',
-                                  body: {'body': comment.text.trim()},
-                                );
-                            if (dialogContext.mounted) Navigator.pop(dialogContext);
-                          },
-                          child: const Text('Send'),
-                        ),
-                      ],
-                    ),
-                  );
-                },
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => LiveRoomPage(streamId: row['id'] as String, title: row['title'].toString()),
+                  ),
+                ),
                 child: const Text('Join'),
               ),
             ),

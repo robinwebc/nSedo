@@ -265,10 +265,15 @@ class Session extends ChangeNotifier {
     return data['items'] as List<dynamic>;
   }
 
-  Future<Map<String, dynamic>> createPost(String body, {String? mediaUrl}) =>
+  Future<Map<String, dynamic>> createPost(
+    String body, {
+    String? mediaUrl,
+    List<Map<String, dynamic>>? media,
+  }) =>
       _map('/posts', method: 'POST', body: {
         if (body.isNotEmpty) 'body': body,
         if (mediaUrl != null) 'mediaUrl': mediaUrl,
+        if (media != null && media.isNotEmpty) 'media': media,
       });
 
   Future<void> like(String id) => _map('/posts/$id/like', method: 'POST');
@@ -288,8 +293,32 @@ class Session extends ChangeNotifier {
       _map('/conversations', method: 'POST', body: {'username': username});
   Future<List<dynamic>> conversations() => _list('/conversations');
   Future<List<dynamic>> messages(String id) => _list('/conversations/$id/messages');
-  Future<Map<String, dynamic>> sendMessage(String id, String body) =>
-      _map('/conversations/$id/messages', method: 'POST', body: {'body': body});
+  Future<Map<String, dynamic>> sendMessage(
+    String id,
+    String body, {
+    String? mediaUrl,
+    String? mediaType,
+  }) =>
+      _map('/conversations/$id/messages', method: 'POST', body: {
+        if (body.isNotEmpty) 'body': body,
+        if (mediaUrl != null) 'mediaUrl': mediaUrl,
+        if (mediaType != null) 'mediaType': mediaType,
+      });
+
+  Future<String> draftPost() async {
+    final data = await _map('/posts/draft', method: 'POST');
+    return data['id'] as String;
+  }
+
+  Future<Map<String, dynamic>> publishPost(String id, String body, List<Map<String, dynamic>> media) =>
+      _map('/posts/$id/publish', method: 'POST', body: {
+        if (body.isNotEmpty) 'body': body,
+        'media': media,
+      });
+
+  Future<void> deletePost(String id) async {
+    await _map('/posts/$id', method: 'DELETE');
+  }
   Future<List<dynamic>> lives() => _list('/live');
   Future<Map<String, dynamic>> goLive(String title) =>
       _map('/live', method: 'POST', body: {'title': title});

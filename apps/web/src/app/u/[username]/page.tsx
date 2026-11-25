@@ -39,7 +39,7 @@ export default function ProfilePage() {
       <Link href="/feed" className="inline-flex items-center gap-2 font-semibold">
         <Logo size={28} /> Back to feed
       </Link>
-      {error && <p className="mt-6 text-[#E4572E]">{error}</p>}
+      {error && <p className="mt-6 text-[#2457E6]">{error}</p>}
       {profile && (
         <section className="mt-6 rounded-3xl bg-white p-6 shadow-sm">
           <h1 className="text-3xl">

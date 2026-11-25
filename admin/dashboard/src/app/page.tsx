@@ -47,7 +47,7 @@ export default function AdminPage() {
               .catch((err: Error) => setError(err.message));
           }}
         />
-        {error && <p className="mt-3 text-sm text-[#E4572E]">{error}</p>}
+        {error && <p className="mt-3 text-sm text-[#2457E6]">{error}</p>}
       </main>
     );
   }
@@ -125,8 +125,8 @@ function LoginForm({ onDone }: { onDone: () => void }) {
     >
       <input name="identifier" required placeholder="Email, phone, or username" className="w-full rounded-2xl border px-3 py-2" />
       <input name="password" type="password" required placeholder="Password" className="w-full rounded-2xl border px-3 py-2" />
-      {error && <p className="text-sm text-[#E4572E]">{error}</p>}
-      <button className="w-full rounded-full bg-[#E4572E] py-2 font-semibold text-white">Sign in</button>
+      {error && <p className="text-sm text-[#2457E6]">{error}</p>}
+      <button className="w-full rounded-full bg-[#2457E6] py-2 font-semibold text-white">Sign in</button>
     </form>
   );
 }
@@ -173,7 +173,7 @@ function Users({ actorRole }: { actorRole: string }) {
         <input value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search users" className="flex-1 rounded-full border bg-white px-4 py-2" />
         <button className="rounded-full bg-[#14202B] px-4 text-white">Search</button>
       </form>
-      {error && <p className="text-sm text-[#E4572E]">{error}</p>}
+      {error && <p className="text-sm text-[#2457E6]">{error}</p>}
       <div className="space-y-2">
         {rows.map((user) => (
           <article key={String(user.id)} className="rounded-2xl bg-white p-3 text-sm">
@@ -218,7 +218,7 @@ function Posts() {
       {rows.map((post) => (
         <article key={String(post.id)} className="rounded-2xl bg-white p-3">
           <p>{String(post.body ?? '')}</p>
-          <button className="mt-2 text-sm text-[#E4572E]" onClick={() => api(`/admin/posts/${post.id}`, { method: 'DELETE' }).then(load)}>
+          <button className="mt-2 text-sm text-[#2457E6]" onClick={() => api(`/admin/posts/${post.id}`, { method: 'DELETE' }).then(load)}>
             Delete post
           </button>
         </article>
@@ -240,7 +240,7 @@ function Comments() {
       {rows.map((comment) => (
         <article key={String(comment.id)} className="rounded-2xl bg-white p-3">
           <p>{String(comment.body)}</p>
-          <button className="mt-2 text-sm text-[#E4572E]" onClick={() => api(`/admin/comments/${comment.id}`, { method: 'DELETE' }).then(load)}>
+          <button className="mt-2 text-sm text-[#2457E6]" onClick={() => api(`/admin/comments/${comment.id}`, { method: 'DELETE' }).then(load)}>
             Delete comment
           </button>
         </article>
@@ -289,7 +289,7 @@ function Live() {
       {rows.map((stream) => (
         <article key={String(stream.id)} className="rounded-2xl bg-white p-3">
           <p className="font-semibold">{String(stream.title)}</p>
-          <button className="mt-2 text-sm text-[#E4572E]" onClick={() => api(`/admin/live/${stream.id}/end`, { method: 'PATCH' }).then(load)}>
+          <button className="mt-2 text-sm text-[#2457E6]" onClick={() => api(`/admin/live/${stream.id}/end`, { method: 'PATCH' }).then(load)}>
             End stream
           </button>
         </article>

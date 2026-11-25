@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Post,
   UploadedFile,
@@ -7,51 +8,84 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { randomUUID } from 'crypto';
-import { mkdirSync } from 'fs';
-import { extname, join } from 'path';
-import { diskStorage } from 'multer';
+import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { type User } from '@prisma/client';
+import { memoryStorage } from 'multer';
+import { CurrentUser } from '../common/decorators';
 import { JwtAuthGuard } from '../common/guards';
+import { MediaService } from './media.service';
 
-const allowed = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
+class PresignDto {
+  @IsString()
+  mime!: string;
 
-function uploadDir() {
-  return process.env.UPLOAD_DIR ?? join(process.cwd(), 'uploads');
+  @IsInt()
+  @Min(1)
+  @Max(50 * 1024 * 1024)
+  size!: number;
+
+  @IsString()
+  filename!: string;
+
+  @IsOptional()
+  @IsIn(['avatar', 'cover', 'post', 'message'])
+  scope?: 'avatar' | 'cover' | 'post' | 'message';
+
+  @IsOptional()
+  @IsString()
+  postId?: string;
+}
+
+class FinalizeDto {
+  @IsString()
+  key!: string;
+}
+
+class LocalUploadDto {
+  @IsOptional()
+  @IsIn(['avatar', 'cover', 'post', 'message'])
+  scope?: 'avatar' | 'cover' | 'post' | 'message';
+
+  @IsOptional()
+  @IsString()
+  postId?: string;
 }
 
 @Controller('media')
 @UseGuards(JwtAuthGuard)
 export class MediaController {
+  constructor(private readonly media: MediaService) {}
+
+  @Post('presign')
+  presign(@CurrentUser() user: User, @Body() dto: PresignDto) {
+    return this.media.presign(user.id, dto.mime, dto.size, dto.filename, dto.scope ?? 'message', dto.postId);
+  }
+
+  @Post('finalize')
+  finalize(@CurrentUser() user: User, @Body() dto: FinalizeDto) {
+    return this.media.finalize(user.id, dto.key);
+  }
+
   @Post('upload')
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: diskStorage({
-        destination: (_req, _file, cb) => {
-          const dir = uploadDir();
-          mkdirSync(dir, { recursive: true });
-          cb(null, dir);
-        },
-        filename: (_req, file, cb) => {
-          const ext = extname(file.originalname).toLowerCase();
-          cb(null, `${randomUUID()}${allowed.has(ext) ? ext : ''}`);
-        },
-      }),
-      limits: { fileSize: 8 * 1024 * 1024 },
-      fileFilter: (_req, file, cb) => {
-        if (!/^image\/(jpeg|png|webp|gif)$/.test(file.mimetype)) {
-          cb(new BadRequestException('Only JPEG, PNG, WEBP, and GIF images are allowed') as unknown as Error, false);
-          return;
-        }
-        cb(null, true);
-      },
+      storage: memoryStorage(),
+      limits: { fileSize: 50 * 1024 * 1024 },
     }),
   )
-  upload(@UploadedFile() file?: Express.Multer.File) {
-    if (!file) throw new BadRequestException('Choose an image to upload');
-    const base = (process.env.PUBLIC_BASE_URL ?? 'http://localhost:4000').replace(
-      /\/$/,
-      '',
+  upload(
+    @CurrentUser() user: User,
+    @UploadedFile() file?: Express.Multer.File,
+    @Body() dto?: LocalUploadDto,
+  ) {
+    if (!file) throw new BadRequestException('Choose a file to upload');
+    return this.media.saveLocal(
+      user.id,
+      file.mimetype,
+      file.originalname,
+      file.buffer,
+      dto?.scope ?? 'message',
+      dto?.postId,
     );
-    return { url: `${base}/uploads/${file.filename}` };
   }
 }

@@ -10,10 +10,26 @@ import { AccessService } from '../common/access.service';
 import { publicUserSelect, toPublicUser } from '../common/user.serializer';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { expandPublicUrl, postMediaError, toStoredKey } from '../media/media.rules';
 import { CreatePostDto } from './dto';
+
+function mediaWrites(items: NonNullable<CreatePostDto['media']>) {
+  return items.map((item, index) => ({
+    url: toStoredKey(item.url) ?? item.url,
+    mimeType: item.mimeType,
+    kind: item.kind,
+    width: item.width,
+    height: item.height,
+    durationMs: item.durationMs,
+    blurhash: item.blurhash,
+    thumbnailUrl: toStoredKey(item.thumbnailUrl),
+    sortOrder: index,
+  }));
+}
 
 const postInclude = (viewerId: string) => ({
   author: { select: publicUserSelect },
+  media: { orderBy: { sortOrder: 'asc' as const } },
   _count: { select: { likes: true, comments: true, reposts: true } },
   likes: { where: { userId: viewerId }, select: { id: true } },
   reposts: {
@@ -40,6 +56,18 @@ type IncludedPost = Post & {
   _count: { likes: number; comments: number; reposts: number };
   likes: { id: string }[];
   reposts: { id: string }[];
+  media?: {
+    id: string;
+    url: string;
+    mimeType: string;
+    kind: string;
+    width: number | null;
+    height: number | null;
+    durationMs: number | null;
+    blurhash: string | null;
+    thumbnailUrl: string | null;
+    sortOrder: number;
+  }[];
 };
 
 @Injectable()
@@ -60,7 +88,12 @@ export class PostsService {
     return {
       id: post.id,
       body: post.body,
-      mediaUrl: post.mediaUrl,
+      mediaUrl: expandPublicUrl(post.mediaUrl),
+      media: (post.media ?? []).map((item) => ({
+        ...item,
+        url: expandPublicUrl(item.url),
+        thumbnailUrl: expandPublicUrl(item.thumbnailUrl),
+      })),
       privacy: post.privacy,
       createdAt: post.createdAt,
       shareUrl: this.shareUrl(post.id),
@@ -79,6 +112,9 @@ export class PostsService {
       include: postInclude(viewerId),
     });
     if (!post) throw new NotFoundException('Post not found');
+    if (!post.published && post.authorId !== viewerId) {
+      throw new NotFoundException('Post not found');
+    }
     if (!(await this.access.canViewPost(viewerId, post))) {
       throw new NotFoundException('Post not found');
     }
@@ -86,19 +122,78 @@ export class PostsService {
   }
 
   async create(user: User, dto: CreatePostDto) {
-    if (!dto.body && !dto.mediaUrl) {
-      throw new BadRequestException('Write something or attach an image');
+    const items = dto.media ?? [];
+    const mediaError = postMediaError(
+      items.map((item) => ({
+        url: item.url,
+        mimeType: item.mimeType,
+        kind: item.kind,
+        durationMs: item.durationMs,
+      })),
+    );
+    if (mediaError) throw new BadRequestException(mediaError);
+    if (!dto.body && !dto.mediaUrl && items.length === 0) {
+      throw new BadRequestException('Write something or attach a photo or video');
     }
     const post = await this.prisma.post.create({
       data: {
         authorId: user.id,
         body: dto.body?.trim(),
-        mediaUrl: dto.mediaUrl,
+        mediaUrl: toStoredKey(items[0]?.url ?? dto.mediaUrl),
+        published: true,
         privacy: dto.privacy ?? user.privacy,
+        media: {
+          create: mediaWrites(items),
+        },
       },
       include: postInclude(user.id),
     });
     return this.present(post);
+  }
+
+  async publish(user: User, id: string, dto: CreatePostDto) {
+    const existing = await this.prisma.post.findUnique({ where: { id } });
+    if (!existing || existing.authorId !== user.id) throw new NotFoundException('Post not found');
+    const items = dto.media ?? [];
+    const mediaError = postMediaError(
+      items.map((item) => ({
+        url: item.url,
+        mimeType: item.mimeType,
+        kind: item.kind,
+        durationMs: item.durationMs,
+      })),
+    );
+    if (mediaError) throw new BadRequestException(mediaError);
+    if (!dto.body && !dto.mediaUrl && items.length === 0) {
+      throw new BadRequestException('Write something or attach a photo or video');
+    }
+    for (const item of items) {
+      const key = toStoredKey(item.url);
+      if (key?.startsWith('posts/') && !key.startsWith(`posts/${id}/`)) {
+        throw new BadRequestException('Unknown upload');
+      }
+    }
+    const post = await this.prisma.post.update({
+      where: { id },
+      data: {
+        body: dto.body?.trim() || null,
+        mediaUrl: toStoredKey(items[0]?.url ?? dto.mediaUrl),
+        published: true,
+        privacy: dto.privacy ?? existing.privacy,
+        media: items.length
+          ? { deleteMany: {}, create: mediaWrites(items) }
+          : { deleteMany: {} },
+      },
+      include: postInclude(user.id),
+    });
+    return this.present(post);
+  }
+
+  async draft(user: User) {
+    const post = await this.prisma.post.create({
+      data: { authorId: user.id, published: false, privacy: user.privacy },
+    });
+    return { id: post.id };
   }
 
   async get(user: User, id: string) {
@@ -126,14 +221,14 @@ export class PostsService {
     );
     const [posts, reposts] = await Promise.all([
       this.prisma.post.findMany({
-        where: { authorId: { in: ids }, author: { banned: false } },
+        where: { published: true, authorId: { in: ids }, author: { banned: false } },
         orderBy: { createdAt: 'desc' },
         take,
         skip,
         include: postInclude(user.id),
       }),
       this.prisma.repost.findMany({
-        where: { userId: { in: ids }, user: { banned: false } },
+        where: { userId: { in: ids }, user: { banned: false }, post: { published: true } },
         orderBy: { createdAt: 'desc' },
         take,
         skip,
@@ -178,6 +273,7 @@ export class PostsService {
     const hidden = await this.access.hiddenAuthorIds(user.id);
     const posts = await this.prisma.post.findMany({
       where: {
+        published: true,
         privacy: 'PUBLIC',
         author: {
           privacy: 'PUBLIC',
@@ -200,7 +296,7 @@ export class PostsService {
       throw new NotFoundException('User not found');
     }
     const posts = await this.prisma.post.findMany({
-      where: { authorId: author.id },
+      where: { authorId: author.id, published: true },
       orderBy: { createdAt: 'desc' },
       take: take + skip + 20,
       include: postInclude(viewer.id),

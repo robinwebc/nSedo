@@ -4,6 +4,7 @@ import {
   ConnectedSocket,
   MessageBody,
   OnGatewayConnection,
+  OnGatewayDisconnect,
   OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
@@ -25,11 +26,15 @@ type SignalBody = {
 };
 
 @WebSocketGateway({ cors: { origin: true, credentials: true } })
-export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
+export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger(RealtimeGateway.name);
 
   @WebSocketServer()
   server!: Server;
+
+  private readonly liveViewers = new Map<string, Map<string, string>>();
+  private readonly liveHosts = new Map<string, string>();
+  private readonly viewerLimit = 5;
 
   constructor(
     private readonly jwt: JwtService,
@@ -39,6 +44,13 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
 
   afterInit(server: Server) {
     this.bus.attach(server);
+  }
+
+  handleDisconnect(client: Socket) {
+    for (const [streamId, members] of this.liveViewers) {
+      if (!members.delete(client.id)) continue;
+      this.emitViewerCount(streamId);
+    }
   }
 
   async handleConnection(client: Socket) {
@@ -170,13 +182,30 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
     @ConnectedSocket() client: Socket,
     @MessageBody() body: { streamId?: string },
   ) {
-    if (!this.userId(client) || !body?.streamId) return { ok: false };
+    const userId = this.userId(client);
+    if (!userId || !body?.streamId) return { ok: false };
     const stream = await this.prisma.liveStream.findUnique({
       where: { id: body.streamId },
     });
     if (!stream || stream.status !== 'LIVE') return { ok: false };
+    this.liveHosts.set(stream.id, stream.hostId);
+    const members = this.liveViewers.get(stream.id) ?? new Map<string, string>();
+    const already = [...members.values()].includes(userId);
+    const viewers = new Set([...members.values()].filter((id) => id !== stream.hostId));
+    if (!already && userId !== stream.hostId && viewers.size >= this.viewerLimit) {
+      return { ok: false, error: 'This live is full' };
+    }
+    members.set(client.id, userId);
+    this.liveViewers.set(stream.id, members);
     await client.join(`live:${stream.id}`);
-    return { ok: true, hostId: stream.hostId };
+    this.emitViewerCount(stream.id);
+    if (userId !== stream.hostId) {
+      this.bus.toUser(stream.hostId, 'live:viewer-joined', {
+        streamId: stream.id,
+        viewerId: userId,
+      });
+    }
+    return { ok: true, hostId: stream.hostId, viewerCount: this.countViewers(stream.id) };
   }
 
   @SubscribeMessage('live:signal')
@@ -232,5 +261,35 @@ export class RealtimeGateway implements OnGatewayInit, OnGatewayConnection {
     };
     this.bus.toRoom(`live:${stream.id}`, 'live:comment', payload);
     return { ok: true, comment: payload };
+  }
+
+  @SubscribeMessage('live:end')
+  async liveEnd(@ConnectedSocket() client: Socket, @MessageBody() body: { streamId?: string }) {
+    const userId = this.userId(client);
+    if (!userId || !body?.streamId) return { ok: false };
+    const stream = await this.prisma.liveStream.findUnique({ where: { id: body.streamId } });
+    if (!stream || stream.hostId !== userId) return { ok: false };
+    await this.prisma.liveStream.update({
+      where: { id: stream.id },
+      data: { status: 'ENDED', endedAt: new Date() },
+    });
+    this.liveViewers.delete(stream.id);
+    this.liveHosts.delete(stream.id);
+    this.bus.toRoom(`live:${stream.id}`, 'live:ended', { streamId: stream.id });
+    return { ok: true };
+  }
+
+  private countViewers(streamId: string) {
+    const members = this.liveViewers.get(streamId);
+    if (!members) return 0;
+    const hostId = this.liveHosts.get(streamId);
+    return new Set([...members.values()].filter((id) => id !== hostId)).size;
+  }
+
+  private emitViewerCount(streamId: string) {
+    this.bus.toRoom(`live:${streamId}`, 'live:viewers', {
+      streamId,
+      count: this.countViewers(streamId),
+    });
   }
 }

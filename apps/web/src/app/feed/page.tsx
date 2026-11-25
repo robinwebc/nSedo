@@ -83,12 +83,12 @@ export default function FeedPage() {
           className="h-24 w-full resize-none outline-none"
         />
         <div className="flex justify-end">
-          <button className="rounded-full bg-[#E4572E] px-4 py-2 text-sm font-semibold text-white">
+          <button className="rounded-full bg-[#2457E6] px-4 py-2 text-sm font-semibold text-white">
             Post · পোস্ট
           </button>
         </div>
       </form>
-      {error && <p className="mb-4 text-sm text-[#E4572E]">{error}</p>}
+      {error && <p className="mb-4 text-sm text-[#2457E6]">{error}</p>}
       <div className="space-y-3">
         {posts.map((post) => (
           <article key={post.id} className="rounded-3xl bg-white p-4 shadow-sm">

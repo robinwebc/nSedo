@@ -2,7 +2,7 @@
 
 nSedo is a social app: short posts, follows, friends, messages, audio and video calls, and small live rooms. The Android app is the main client. A Next.js site and an admin console talk to the same NestJS API.
 
-The product name, mark, and colors belong to nSedo. The accent is ember `#E4572E` on ink `#14202B`.
+The product name, mark, and colors belong to nSedo. The accent is cobalt `#2457E6` on light surfaces and `#6E96FF` on ink `#14202B`.
 
 ## Layout
 

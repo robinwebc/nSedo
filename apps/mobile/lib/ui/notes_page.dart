@@ -65,7 +65,7 @@ class _NotesPageState extends State<NotesPage> {
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
-      color: ember,
+      color: brandAccent(context),
       onRefresh: load,
       child: ListView(
         children: [

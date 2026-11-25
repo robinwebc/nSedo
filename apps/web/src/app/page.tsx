@@ -13,7 +13,7 @@ export default function HomePage() {
           <Link href="/privacy" className="rounded-full px-3 py-2 hover:bg-black/5">
             Privacy
           </Link>
-          <Link href="/login" className="rounded-full bg-[#E4572E] px-4 py-2 font-semibold text-white">
+          <Link href="/login" className="rounded-full bg-[#2457E6] px-4 py-2 font-semibold text-white">
             Sign in
           </Link>
         </nav>

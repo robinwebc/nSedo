@@ -1,12 +1,11 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../api.dart';
 import '../session.dart';
 import '../theme.dart';
+import 'composer.dart';
+import 'live_room.dart';
 import 'post_page.dart';
 import 'widgets.dart';
 
@@ -19,10 +18,9 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   List<dynamic> items = [];
+  List<dynamic> lives = [];
   String? error;
   var loading = true;
-  final body = TextEditingController();
-  String? mediaUrl;
 
   @override
   void initState() {
@@ -33,10 +31,13 @@ class _HomePageState extends State<HomePage> {
   Future<void> load() async {
     setState(() => loading = true);
     try {
-      final feed = await context.read<Session>().feed();
+      final session = context.read<Session>();
+      final feed = await session.feed();
+      final live = await session.lives();
       if (!mounted) return;
       setState(() {
         items = feed;
+        lives = live;
         error = null;
         loading = false;
       });
@@ -55,66 +56,30 @@ class _HomePageState extends State<HomePage> {
     return map;
   }
 
-  Future<void> publish() async {
-    final session = context.read<Session>();
-    try {
-      await session.createPost(body.text.trim(), mediaUrl: mediaUrl);
-      body.clear();
-      setState(() => mediaUrl = null);
-      await load();
-    } catch (err) {
-      if (mounted) setState(() => error = explainError(err));
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final session = context.watch<Session>();
     return RefreshIndicator(
-      color: ember,
+      color: brandAccent(context),
       onRefresh: load,
       child: ListView(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(space2, space2, space2, space1),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(
-                  controller: body,
-                  minLines: 2,
-                  maxLines: 6,
-                  maxLength: 500,
-                  decoration: const InputDecoration(
-                    hintText: 'Write a post',
-                    counterText: '',
+          Composer(onPosted: load),
+          for (final row in lives)
+            ListTile(
+              leading: const Icon(Icons.sensors, color: cobalt),
+              title: Text(row['title'].toString()),
+              subtitle: Text('Live · @${(row['host'] as Map)['username']}'),
+              trailing: const Text('Watch'),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => LiveRoomPage(
+                    streamId: row['id'] as String,
+                    title: row['title'].toString(),
                   ),
                 ),
-                if (mediaUrl != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(mediaUrl!, maxLines: 1, overflow: TextOverflow.ellipsis),
-                  ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    IconButton(
-                      tooltip: 'Image',
-                      onPressed: () async {
-                        final file = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 80);
-                        if (file == null || !mounted) return;
-                        final url = await context.read<Session>().upload(File(file.path));
-                        if (mounted) setState(() => mediaUrl = url);
-                      },
-                      icon: const Icon(Icons.image_outlined),
-                    ),
-                    const Spacer(),
-                    FilledButton(onPressed: publish, child: const Text('Post')),
-                  ],
-                ),
-              ],
+              ),
             ),
-          ),
           const Hairline(),
           if (loading) const FeedSkeleton(),
           if (!loading && error != null) ErrorView(message: error!, onRetry: load),

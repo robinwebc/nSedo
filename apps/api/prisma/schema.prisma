@@ -87,6 +87,11 @@ enum OtpPurpose {
   LOGIN
 }
 
+enum MediaKind {
+  IMAGE
+  VIDEO
+}
+
 model User {
   id           String   @id @default(cuid())
   userId       String   @unique
@@ -102,6 +107,10 @@ model User {
   avatarUrl    String?
   coverUrl     String?
   bio          String?
+  location     String?
+  website      String?
+  birthday     DateTime?
+  onboardedAt  DateTime?
   role         Role     @default(USER)
   privacy      Privacy  @default(PUBLIC)
   createdAt    DateTime @default(now())
@@ -147,16 +156,36 @@ model Post {
   authorId  String
   body      String?
   mediaUrl  String?
+  published Boolean  @default(true)
   privacy   Privacy  @default(PUBLIC)
   createdAt DateTime @default(now())
 
-  author   User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author   User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
   likes    Like[]
   comments Comment[]
   reposts  Repost[]
+  media    PostMedia[]
 
   @@index([authorId, createdAt])
   @@index([createdAt])
+}
+
+model PostMedia {
+  id           String    @id @default(cuid())
+  postId       String
+  url          String
+  mimeType     String
+  kind         MediaKind
+  width        Int?
+  height       Int?
+  durationMs   Int?
+  blurhash     String?
+  thumbnailUrl String?
+  sortOrder    Int       @default(0)
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId, sortOrder])
 }
 
 model Like {
@@ -262,6 +291,9 @@ model Message {
   conversationId String
   senderId       String
   body           String
+  mediaUrl       String?
+  mediaType      String?
+  thumbnailUrl   String?
   createdAt      DateTime  @default(now())
   readAt         DateTime?
 
