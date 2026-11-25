@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../api.dart';
+import '../server_check.dart';
 import '../session.dart';
 import '../theme.dart';
 
@@ -12,12 +14,15 @@ class ConnectPage extends StatefulWidget {
 }
 
 class _ConnectPageState extends State<ConnectPage> {
-  final server = TextEditingController();
+  final server = TextEditingController(text: defaultApiUrl);
+  var _synced = false;
 
   @override
-  void initState() {
-    super.initState();
-    server.text = context.read<Session>().apiUrl;
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_synced) return;
+    _synced = true;
+    server.text = resolveApiUrl(context.read<Session>().apiUrl);
   }
 
   @override
@@ -29,7 +34,8 @@ class _ConnectPageState extends State<ConnectPage> {
   @override
   Widget build(BuildContext context) {
     final session = context.watch<Session>();
-    final waiting = session.link == ServerLink.checking;
+    final waiting = session.link == ServerLink.checking && session.lastError == null;
+    final failed = session.lastError != null;
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -39,18 +45,30 @@ class _ConnectPageState extends State<ConnectPage> {
             children: [
               const NsedoMark(size: 48, withWord: true),
               const SizedBox(height: space4),
-              Text('Connecting to server', style: Theme.of(context).textTheme.headlineMedium),
+              Text(
+                failed ? 'Server unavailable' : 'Connecting to server',
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
               const SizedBox(height: space1),
               Text(
-                'The server is waking up. This can take about a minute.',
-                style: Theme.of(context).textTheme.bodyLarge,
+                failed
+                    ? session.lastError!
+                    : 'The server is waking up. This can take about a minute.',
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: failed ? Theme.of(context).colorScheme.error : null,
+                    ),
               ),
               const SizedBox(height: space3),
               TextField(
+                key: const Key('server-address'),
                 controller: server,
-                enabled: !waiting,
-                decoration: const InputDecoration(labelText: 'Server address'),
+                enabled: true,
+                decoration: const InputDecoration(
+                  labelText: 'Server address',
+                  floatingLabelBehavior: FloatingLabelBehavior.always,
+                ),
                 keyboardType: TextInputType.url,
+                autocorrect: false,
               ),
               const SizedBox(height: space2),
               if (waiting) const LinearProgressIndicator(minHeight: 2, color: ember),
@@ -58,13 +76,11 @@ class _ConnectPageState extends State<ConnectPage> {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: waiting
-                      ? null
-                      : () async {
-                          await session.setApiUrl(server.text.trim());
-                          await session.boot();
-                        },
-                  child: Text(waiting ? 'Connecting' : 'Try again'),
+                  onPressed: () async {
+                    await session.setApiUrl(server.text);
+                    await session.boot();
+                  },
+                  child: Text(failed ? 'Try again' : 'Continue'),
                 ),
               ),
             ],

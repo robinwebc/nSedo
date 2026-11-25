@@ -3,6 +3,11 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+const defaultApiUrl = String.fromEnvironment(
+  'API_URL',
+  defaultValue: 'https://nsedo-api.onrender.com',
+);
+
 class ApiException implements Exception {
   ApiException(this.status, this.message);
   final int status;
@@ -66,15 +71,6 @@ class ApiClient {
       throw ApiException(streamed.statusCode, decoded['message']?.toString() ?? 'Upload failed');
     }
     return decoded['url'] as String;
-  }
-
-  Future<bool> ping() async {
-    try {
-      final response = await http.get(_uri('/health')).timeout(const Duration(seconds: 90));
-      return response.statusCode == 200;
-    } catch (_) {
-      return false;
-    }
   }
 }
 
