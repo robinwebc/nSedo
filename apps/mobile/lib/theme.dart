@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 
-const ember = Color(0xFFE4572E);
+/// Light-surface cobalt. White on `#2457E6` is 5.86:1.
+const cobalt = Color(0xFF2457E6);
+
+/// Dark-surface cobalt. `#6E96FF` on ink `#14202B` is 5.88:1.
+const cobaltBright = Color(0xFF6E96FF);
 const ink = Color(0xFF14202B);
 const seed = Color(0xFFF4C95D);
 const mist = Color(0xFFF6F3EE);
@@ -20,10 +24,12 @@ ThemeData nsedoTheme(Brightness brightness) {
   final surface = dark ? const Color(0xFF1B242C) : Colors.white;
   final background = dark ? ink : mist;
   final onSurface = dark ? mist : ink;
+  final accent = dark ? cobaltBright : cobalt;
+  final onAccent = dark ? ink : Colors.white;
   final scheme = ColorScheme(
     brightness: brightness,
-    primary: ember,
-    onPrimary: Colors.white,
+    primary: accent,
+    onPrimary: onAccent,
     secondary: pine,
     onSecondary: Colors.white,
     error: const Color(0xFFB42318),
@@ -71,13 +77,13 @@ ThemeData nsedoTheme(Brightness brightness) {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: ember, width: 1.5),
+        borderSide: BorderSide(color: accent, width: 1.5),
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        backgroundColor: ember,
-        foregroundColor: Colors.white,
+        backgroundColor: accent,
+        foregroundColor: onAccent,
         minimumSize: const Size(0, 44),
         padding: const EdgeInsets.symmetric(horizontal: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -96,20 +102,20 @@ ThemeData nsedoTheme(Brightness brightness) {
     navigationBarTheme: NavigationBarThemeData(
       height: 64,
       backgroundColor: surface,
-      indicatorColor: ember.withValues(alpha: 0.14),
+      indicatorColor: accent.withValues(alpha: 0.16),
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
         return TextStyle(
           fontSize: 11,
           fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-          color: selected ? ember : (dark ? const Color(0xFFB7C0C7) : muted),
+          color: selected ? accent : (dark ? const Color(0xFFB7C0C7) : muted),
         );
       }),
       iconTheme: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
         return IconThemeData(
           size: 22,
-          color: selected ? ember : (dark ? const Color(0xFFB7C0C7) : muted),
+          color: selected ? accent : (dark ? const Color(0xFFB7C0C7) : muted),
         );
       }),
     ),
@@ -155,7 +161,7 @@ class NsedoMark extends StatelessWidget {
           Text(
             'n',
             style: TextStyle(
-              color: ember,
+              color: cobaltBright,
               fontSize: size * 0.58,
               fontWeight: FontWeight.w800,
               height: 1,
@@ -183,6 +189,10 @@ class NsedoMark extends StatelessWidget {
       ],
     );
   }
+}
+
+Color brandAccent(BuildContext context) {
+  return Theme.of(context).brightness == Brightness.dark ? cobaltBright : cobalt;
 }
 
 String shortTime(dynamic value) {

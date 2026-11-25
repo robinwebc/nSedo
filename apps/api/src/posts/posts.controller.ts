@@ -33,9 +33,19 @@ export class PostsController {
     return this.posts.explore(user, take, skip);
   }
 
+  @Post('posts/draft')
+  draft(@CurrentUser() user: User) {
+    return this.posts.draft(user);
+  }
+
   @Post('posts')
   create(@CurrentUser() user: User, @Body() dto: CreatePostDto) {
     return this.posts.create(user, dto);
+  }
+
+  @Post('posts/:id/publish')
+  publish(@CurrentUser() user: User, @Param('id') id: string, @Body() dto: CreatePostDto) {
+    return this.posts.publish(user, id, dto);
   }
 
   @Get('posts/:id')

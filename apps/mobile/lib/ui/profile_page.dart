@@ -6,6 +6,8 @@ import '../api.dart';
 import '../session.dart';
 import '../theme.dart';
 import 'call_page.dart';
+import 'edit_profile_page.dart';
+import 'live_room.dart';
 import 'widgets.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -19,6 +21,7 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   Map<String, dynamic>? profile;
+  Map<String, dynamic>? live;
   String? error;
   var loading = true;
 
@@ -37,9 +40,16 @@ class _ProfilePageState extends State<ProfilePage> {
       final data = name == session.me?['username']
           ? Map<String, dynamic>.from(await session.api.send('GET', '/users/me') as Map)
           : await session.profile(name);
+      final streams = await session.lives();
+      Map<String, dynamic>? current;
+      for (final row in streams) {
+        final host = Map<String, dynamic>.from(row['host'] as Map);
+        if (host['username'] == data['username']) current = Map<String, dynamic>.from(row as Map);
+      }
       if (!mounted) return;
       setState(() {
         profile = data;
+        live = current;
         error = null;
         loading = false;
       });
@@ -74,7 +84,10 @@ class _ProfilePageState extends State<ProfilePage> {
               ? ErrorView(message: error ?? 'Profile unavailable', onRetry: load)
               : ListView(
                   children: [
-                    Container(height: 96, color: ink),
+                    if ((data['coverUrl']?.toString() ?? '').isNotEmpty)
+                      Image.network(data['coverUrl'].toString(), height: 120, width: double.infinity, fit: BoxFit.cover)
+                    else
+                      Container(height: 96, color: ink),
                     Transform.translate(
                       offset: const Offset(space2, -28),
                       child: Column(
@@ -89,6 +102,25 @@ class _ProfilePageState extends State<ProfilePage> {
                           Text('@${data['username']}  ${data['userId'] ?? ''}', style: Theme.of(context).textTheme.bodySmall),
                           const SizedBox(height: space1),
                           Text((data['bio']?.toString().isNotEmpty ?? false) ? data['bio'].toString() : 'No bio'),
+                          if ((data['location']?.toString() ?? '').isNotEmpty)
+                            Text(data['location'].toString(), style: Theme.of(context).textTheme.bodySmall),
+                          if ((data['website']?.toString() ?? '').isNotEmpty)
+                            Text(data['website'].toString(), style: Theme.of(context).textTheme.bodySmall),
+                          if (live != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: space1),
+                              child: FilledButton(
+                                onPressed: () => Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => LiveRoomPage(
+                                      streamId: live!['id'] as String,
+                                      title: live!['title'].toString(),
+                                    ),
+                                  ),
+                                ),
+                                child: const Text('Watch live'),
+                              ),
+                            ),
                           const SizedBox(height: 4),
                           Text(
                             '${data['privacy'] == 'PRIVATE' ? 'Private' : 'Public'} account',
@@ -164,8 +196,6 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   final server = TextEditingController();
   final username = TextEditingController();
-  final displayName = TextEditingController();
-  final bio = TextEditingController();
   final password = TextEditingController();
   final nextPassword = TextEditingController();
   String? message;
@@ -176,8 +206,6 @@ class _SettingsPageState extends State<SettingsPage> {
     super.initState();
     final me = context.read<Session>().me;
     server.text = context.read<Session>().apiUrl;
-    displayName.text = me?['displayName']?.toString() ?? '';
-    bio.text = me?['bio']?.toString() ?? '';
     privateAccount = me?['privacy'] == 'PRIVATE';
   }
 
@@ -189,15 +217,10 @@ class _SettingsPageState extends State<SettingsPage> {
       body: ListView(
         children: [
           const _Heading('Account'),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: space2),
-            child: Column(
-              children: [
-                TextField(controller: displayName, decoration: const InputDecoration(labelText: 'Display name')),
-                const SizedBox(height: space2),
-                TextField(controller: bio, decoration: const InputDecoration(labelText: 'Bio')),
-              ],
-            ),
+          ListTile(
+            title: const Text('Edit profile'),
+            subtitle: const Text('Name, photo, bio, location'),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const EditProfilePage())),
           ),
           SwitchListTile(
             value: privateAccount,
@@ -209,8 +232,6 @@ class _SettingsPageState extends State<SettingsPage> {
             title: const Text('Save profile'),
             onTap: () async {
               await session.updateMe({
-                'displayName': displayName.text.trim(),
-                'bio': bio.text.trim(),
                 'privacy': privateAccount ? 'PRIVATE' : 'PUBLIC',
               });
               setState(() => message = 'Profile saved');
@@ -296,7 +317,7 @@ class _Heading extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(space2, space3, space2, space1),
-      child: Text(text, style: Theme.of(context).textTheme.labelLarge?.copyWith(color: ember)),
+      child: Text(text, style: Theme.of(context).textTheme.labelLarge?.copyWith(color: brandAccent(context))),
     );
   }
 }

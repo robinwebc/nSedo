@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:socket_io_client/socket_io_client.dart' as sio;
 
 import '../api.dart';
 import '../session.dart';
 import '../theme.dart';
+import '../upload.dart';
 import 'call_page.dart';
+import 'media_view.dart';
 import 'widgets.dart';
 
 class MessagesPage extends StatefulWidget {
@@ -58,7 +61,7 @@ class _MessagesPageState extends State<MessagesPage> {
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
-      color: ember,
+      color: brandAccent(context),
       onRefresh: load,
       child: ListView(
         children: [
@@ -115,6 +118,7 @@ class _ChatPageState extends State<ChatPage> {
   final body = TextEditingController();
   String typing = '';
   sio.Socket? socket;
+  double? progress;
 
   @override
   void initState() {
@@ -212,19 +216,51 @@ class _ChatPageState extends State<ChatPage> {
                       constraints: const BoxConstraints(maxWidth: 280),
                       decoration: BoxDecoration(
                         color: (message['sender'] as Map)['id'] == meId
-                            ? ember
+                            ? Theme.of(context).colorScheme.primary
                             : Theme.of(context).colorScheme.surface,
                         borderRadius: BorderRadius.circular(8),
                         border: (message['sender'] as Map)['id'] == meId
                             ? null
                             : Border.all(color: Theme.of(context).dividerColor),
                       ),
-                      child: Text(
-                        message['body'].toString(),
-                        style: TextStyle(
-                          color: (message['sender'] as Map)['id'] == meId ? Colors.white : null,
-                          fontSize: 15,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if ((message['mediaUrl']?.toString() ?? '').isNotEmpty)
+                            GestureDetector(
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => MediaViewerPage(
+                                    items: [
+                                      {
+                                        'url': message['mediaUrl'],
+                                        'kind': (message['mediaType']?.toString() ?? '').startsWith('video')
+                                            ? 'VIDEO'
+                                            : 'IMAGE',
+                                      },
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.only(bottom: 6),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: Image.network(message['mediaUrl'].toString(), height: 140, fit: BoxFit.cover),
+                                ),
+                              ),
+                            ),
+                          if ((message['body']?.toString() ?? '').isNotEmpty)
+                            Text(
+                              message['body'].toString(),
+                              style: TextStyle(
+                                color: (message['sender'] as Map)['id'] == meId
+                                    ? Theme.of(context).colorScheme.onPrimary
+                                    : null,
+                                fontSize: 15,
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ),
@@ -232,10 +268,43 @@ class _ChatPageState extends State<ChatPage> {
             ),
           ),
           const Hairline(),
+          if (progress != null) LinearProgressIndicator(value: progress == 0 ? null : progress, color: brandAccent(context)),
           Padding(
             padding: const EdgeInsets.fromLTRB(space2, 8, 4, space2),
             child: Row(
               children: [
+                IconButton(
+                  tooltip: 'Photo',
+                  onPressed: () async {
+                    final file = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 85);
+                    if (file == null || !mounted) return;
+                    setState(() => progress = 0);
+                    try {
+                      final bytes = await compressImage(file.path);
+                      final saved = await MediaUpload(session.api).sendBytes(
+                        bytes: bytes,
+                        filename: 'message.jpg',
+                        mime: 'image/jpeg',
+                        scope: 'message',
+                        onProgress: (value) {
+                          if (mounted) setState(() => progress = value);
+                        },
+                      );
+                      await session.sendMessage(
+                        widget.conversation['id'] as String,
+                        '',
+                        mediaUrl: saved['key']?.toString() ?? saved['url']?.toString(),
+                        mediaType: saved['mimeType']?.toString() ?? 'image/jpeg',
+                      );
+                      await load();
+                    } catch (err) {
+                      if (mounted) setState(() => typing = explainError(err));
+                    } finally {
+                      if (mounted) setState(() => progress = null);
+                    }
+                  },
+                  icon: const Icon(Icons.image_outlined),
+                ),
                 Expanded(
                   child: TextField(
                     controller: body,

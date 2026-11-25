@@ -71,7 +71,7 @@ class _ConnectPageState extends State<ConnectPage> {
                 autocorrect: false,
               ),
               const SizedBox(height: space2),
-              if (waiting) const LinearProgressIndicator(minHeight: 2, color: ember),
+              if (waiting) LinearProgressIndicator(minHeight: 2, color: brandAccent(context)),
               const Spacer(),
               SizedBox(
                 width: double.infinity,

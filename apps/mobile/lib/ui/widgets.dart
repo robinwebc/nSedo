@@ -3,6 +3,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../session.dart';
 import '../theme.dart';
+import 'media_view.dart';
 
 class UserAvatar extends StatelessWidget {
   const UserAvatar({super.key, required this.user, this.radius = 20});
@@ -155,7 +156,6 @@ class PostTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final author = Map<String, dynamic>.from(post['author'] as Map? ?? {});
     final mutedColor = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.62);
-    final media = post['mediaUrl']?.toString();
     return InkWell(
       onTap: onOpen,
       child: Padding(
@@ -201,14 +201,7 @@ class PostTile extends StatelessWidget {
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(post['body'].toString(), style: Theme.of(context).textTheme.bodyMedium),
                     ),
-                  if (media != null && media.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: space1),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(media, height: 180, width: double.infinity, fit: BoxFit.cover),
-                      ),
-                    ),
+                  PostMedia(post: post),
                   const SizedBox(height: 4),
                   Row(
                     children: [
@@ -224,7 +217,7 @@ class PostTile extends StatelessWidget {
                       _Count(
                         icon: post['likedByMe'] == true ? Icons.favorite : Icons.favorite_border,
                         count: post['likeCount'],
-                        color: post['likedByMe'] == true ? ember : null,
+                        color: post['likedByMe'] == true ? brandAccent(context) : null,
                         onTap: () async {
                           await session.like(post['id'] as String);
                           onChanged?.call();

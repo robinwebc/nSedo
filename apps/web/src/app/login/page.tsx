@@ -125,9 +125,9 @@ export default function LoginPage() {
             <Input name="displayName" label="Display name" required={false} />
           </>
         )}
-        {error && <p className="text-sm text-[#E4572E]">{error}</p>}
+        {error && <p className="text-sm text-[#2457E6]">{error}</p>}
         {notice && <p className="text-sm text-[#1F6F5B]">{notice}</p>}
-        <button disabled={busy} className="w-full rounded-full bg-[#E4572E] py-3 font-semibold text-white">
+        <button disabled={busy} className="w-full rounded-full bg-[#2457E6] py-3 font-semibold text-white">
           {busy ? 'Please wait' : 'Continue'}
         </button>
       </form>

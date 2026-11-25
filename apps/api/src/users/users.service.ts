@@ -10,6 +10,7 @@ import {
 import { Prisma, type User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { AccessService } from '../common/access.service';
+import { toStoredKey } from '../media/media.rules';
 import { usernameError } from '../common/username';
 import { toOwnerUser, toPublicUser } from '../common/user.serializer';
 import { PrismaService } from '../prisma/prisma.service';
@@ -49,9 +50,18 @@ export class UsersService {
       data: {
         displayName: dto.displayName?.trim(),
         bio: dto.bio,
+        location: dto.location?.trim(),
+        website: dto.website === '' ? null : dto.website,
+        birthday:
+          dto.birthday === undefined
+            ? undefined
+            : dto.birthday
+              ? new Date(dto.birthday)
+              : null,
+        onboardedAt: dto.onboarded ? new Date() : undefined,
         privacy: dto.privacy,
-        avatarUrl: dto.avatarUrl,
-        coverUrl: dto.coverUrl,
+        avatarUrl: dto.avatarUrl === undefined ? undefined : toStoredKey(dto.avatarUrl),
+        coverUrl: dto.coverUrl === undefined ? undefined : toStoredKey(dto.coverUrl),
       },
     });
     return toOwnerUser(updated);

@@ -18,6 +18,7 @@ class PostPage extends StatefulWidget {
 class _PostPageState extends State<PostPage> {
   final comment = TextEditingController();
   List<dynamic> comments = [];
+  Map<String, dynamic>? post;
   String? error;
   var loading = true;
 
@@ -30,10 +31,13 @@ class _PostPageState extends State<PostPage> {
   Future<void> load() async {
     setState(() => loading = true);
     try {
-      final rows = await context.read<Session>().api.send('GET', '/posts/${widget.postId}/comments');
+      final session = context.read<Session>();
+      final rows = await session.api.send('GET', '/posts/${widget.postId}/comments');
+      final detail = await session.api.send('GET', '/posts/${widget.postId}');
       if (!mounted) return;
       setState(() {
         comments = rows as List<dynamic>;
+        post = Map<String, dynamic>.from(detail as Map);
         error = null;
         loading = false;
       });
@@ -55,6 +59,8 @@ class _PostPageState extends State<PostPage> {
           Expanded(
             child: ListView(
               children: [
+                if (post != null)
+                  PostTile(post: post!, session: context.read<Session>(), onChanged: load),
                 if (loading) const FeedSkeleton(),
                 if (error != null) ErrorView(message: error!, onRetry: load),
                 if (!loading && error == null && comments.isEmpty) const EmptyView(title: 'No comments'),

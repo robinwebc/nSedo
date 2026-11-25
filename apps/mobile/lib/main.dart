@@ -5,6 +5,7 @@ import 'session.dart';
 import 'theme.dart';
 import 'ui/auth_page.dart';
 import 'ui/connect_page.dart';
+import 'ui/edit_profile_page.dart';
 import 'ui/shell.dart';
 
 void main() {
@@ -52,6 +53,9 @@ class _Gate extends StatelessWidget {
       return const ConnectPage();
     }
     if (!session.signedIn) return const AuthPage();
+    if (session.me?['onboardedAt'] == null) {
+      return const EditProfilePage(onboarding: true);
+    }
     return const Shell();
   }
 }
