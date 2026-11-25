@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -7,11 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:socket_io_client/socket_io_client.dart' as sio;
 
 import 'api.dart';
-
-const defaultApiUrl = String.fromEnvironment(
-  'API_URL',
-  defaultValue: 'https://nsedo-api.onrender.com',
-);
+import 'server_check.dart';
 
 enum ServerLink { checking, online, offline }
 const googleServerClientId = String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID');
@@ -31,44 +28,72 @@ class Session extends ChangeNotifier {
   Map<String, dynamic>? incomingCall;
   bool ready = false;
   ServerLink link = ServerLink.checking;
+  String? lastError;
+  int _bootGen = 0;
 
   bool get signedIn => accessToken != null && me != null;
 
   Future<void> boot() async {
+    final gen = ++_bootGen;
     link = ServerLink.checking;
+    lastError = null;
     ready = false;
     notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    apiUrl = prefs.getString('apiUrl') ?? defaultApiUrl;
+    apiUrl = await _savedApiUrl();
+    if (gen != _bootGen) return;
     api = ApiClient(apiUrl);
-    final online = await api.ping();
-    if (!online) {
+    final result = await checkHealth(apiUrl);
+    if (gen != _bootGen) return;
+    if (!result.ok) {
       link = ServerLink.offline;
+      lastError = result.message ?? 'Could not reach the server.';
       ready = true;
       notifyListeners();
       return;
     }
     link = ServerLink.online;
-    accessToken = await _secure.read(key: 'accessToken');
-    refreshToken = await _secure.read(key: 'refreshToken');
-    api.token = accessToken;
-    if (accessToken != null) {
-      try {
-        me = await _map('/users/me');
-        _connectSocket();
-      } catch (_) {
-        await logout(silent: true);
-      }
-    }
+    await _restoreSession();
+    if (gen != _bootGen) return;
     ready = true;
     notifyListeners();
   }
 
+  Future<String> _savedApiUrl() async {
+    try {
+      final prefs = await SharedPreferences.getInstance().timeout(const Duration(seconds: 5));
+      return resolveApiUrl(prefs.getString('apiUrl'));
+    } on TimeoutException {
+      return resolveApiUrl(null);
+    } catch (_) {
+      return resolveApiUrl(apiUrl);
+    }
+  }
+
+  Future<void> _restoreSession() async {
+    try {
+      accessToken = await _secure.read(key: 'accessToken').timeout(const Duration(seconds: 5));
+      refreshToken = await _secure.read(key: 'refreshToken').timeout(const Duration(seconds: 5));
+    } catch (_) {
+      accessToken = null;
+      refreshToken = null;
+    }
+    api.token = accessToken;
+    if (accessToken == null) return;
+    try {
+      me = await _map('/users/me');
+      _connectSocket();
+    } catch (_) {
+      await logout(silent: true);
+    }
+  }
+
   Future<void> setApiUrl(String value) async {
-    apiUrl = value.trim().replaceAll(RegExp(r'/+$'), '');
+    apiUrl = resolveApiUrl(value);
     api.baseUrl = apiUrl;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('apiUrl', apiUrl);
+    try {
+      final prefs = await SharedPreferences.getInstance().timeout(const Duration(seconds: 5));
+      await prefs.setString('apiUrl', apiUrl);
+    } catch (_) {}
     notifyListeners();
   }
 
