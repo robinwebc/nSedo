@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'session.dart';
 import 'theme.dart';
 import 'ui/auth_page.dart';
+import 'ui/connect_page.dart';
 import 'ui/shell.dart';
 
 void main() {
@@ -47,8 +48,8 @@ class _Gate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final session = context.watch<Session>();
-    if (!session.ready) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (!session.ready || session.link != ServerLink.online) {
+      return const ConnectPage();
     }
     if (!session.signedIn) return const AuthPage();
     return const Shell();

@@ -54,7 +54,7 @@ export default function LoginPage() {
             auth: false,
             body: { channel, target, purpose: 'LOGIN' },
           });
-          setNotice('Code sent. In local development it is printed in the API logs.');
+          setNotice('Code sent.');
           setBusy(false);
           return;
         }

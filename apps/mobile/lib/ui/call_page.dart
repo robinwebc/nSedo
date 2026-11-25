@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:socket_io_client/socket_io_client.dart' as sio;
 
 import '../session.dart';
+import '../theme.dart';
 
 class CallPage extends StatefulWidget {
   const CallPage({
@@ -143,20 +144,41 @@ class _CallPageState extends State<CallPage> {
 
   @override
   Widget build(BuildContext context) {
+    final label = widget.type == 'VIDEO' ? 'Video call' : 'Audio call';
     return Scaffold(
-      appBar: AppBar(title: Text('${widget.type == 'VIDEO' ? 'Video' : 'Audio'} call')),
+      backgroundColor: ink,
+      appBar: AppBar(
+        backgroundColor: ink,
+        foregroundColor: mist,
+        title: Text(label),
+      ),
       body: Column(
         children: [
-          Padding(padding: const EdgeInsets.all(16), child: Text(status)),
-          if (widget.type == 'VIDEO') ...[
-            Expanded(child: RTCVideoView(remote)),
-            SizedBox(height: 160, child: RTCVideoView(local, mirror: true)),
-          ],
-          FilledButton(
-            onPressed: () => Navigator.of(context).maybePop(),
-            child: const Text('Hang up'),
+          const SizedBox(height: 24),
+          Text(
+            status,
+            style: const TextStyle(color: mist, fontSize: 16),
+          ),
+          Text(
+            '@${widget.peerName}',
+            style: const TextStyle(color: Color(0xFFB7C0C7), fontSize: 13),
           ),
           const SizedBox(height: 16),
+          if (widget.type == 'VIDEO') ...[
+            Expanded(child: RTCVideoView(remote)),
+            SizedBox(height: 140, child: RTCVideoView(local, mirror: true)),
+          ] else
+            const Spacer(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () => Navigator.of(context).maybePop(),
+                child: const Text('Hang up'),
+              ),
+            ),
+          ),
         ],
       ),
     );

@@ -24,25 +24,23 @@ class _ShellState extends State<Shell> {
   @override
   Widget build(BuildContext context) {
     final session = context.watch<Session>();
-    final pages = [
-      const HomePage(),
-      const SearchPage(),
-      const LivePage(),
-      const NotesPage(),
-      const MessagesPage(),
+    final pages = const [
+      HomePage(),
+      SearchPage(),
+      LivePage(),
+      NotesPage(),
+      MessagesPage(),
     ];
     return Scaffold(
       appBar: AppBar(
         title: const NsedoMark(withWord: true, size: 28),
         actions: [
           IconButton(
+            tooltip: 'Profile',
             onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const ProfilePage()),
-              );
+              Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProfilePage()));
             },
             icon: const Icon(Icons.person_outline),
-            tooltip: 'Profile · প্রোফাইল',
           ),
         ],
       ),
@@ -50,7 +48,7 @@ class _ShellState extends State<Shell> {
         children: [
           if (session.incomingCall != null)
             MaterialBanner(
-              content: Text('Incoming ${session.incomingCall!['type']} call'),
+              content: Text('Incoming ${'${session.incomingCall!['type']}'.toLowerCase()} call'),
               actions: [
                 TextButton(
                   onPressed: () {
@@ -78,13 +76,21 @@ class _ShellState extends State<Shell> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: index,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         onDestinationSelected: (value) => setState(() => index = value),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), label: 'Home · হোম'),
-          NavigationDestination(icon: Icon(Icons.search), label: 'Search · খোঁজ'),
-          NavigationDestination(icon: Icon(Icons.podcasts_outlined), label: 'Live · লাইভ'),
-          NavigationDestination(icon: Icon(Icons.notifications_none), label: 'Alerts · খবর'),
-          NavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'Chat · বার্তা'),
+        destinations: [
+          for (final item in [
+            (Icons.home_outlined, Icons.home, 'Home'),
+            (Icons.search, Icons.search, 'Search'),
+            (Icons.sensors, Icons.sensors, 'Live'),
+            (Icons.notifications_none, Icons.notifications, 'Alerts'),
+            (Icons.chat_bubble_outline, Icons.chat_bubble, 'Messages'),
+          ])
+            NavigationDestination(
+              icon: Icon(item.$1),
+              selectedIcon: Icon(item.$2),
+              label: item.$3,
+            ),
         ],
       ),
     );

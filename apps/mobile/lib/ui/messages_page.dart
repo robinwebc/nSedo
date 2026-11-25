@@ -4,7 +4,9 @@ import 'package:socket_io_client/socket_io_client.dart' as sio;
 
 import '../api.dart';
 import '../session.dart';
+import '../theme.dart';
 import 'call_page.dart';
+import 'widgets.dart';
 
 class MessagesPage extends StatefulWidget {
   const MessagesPage({super.key});
@@ -17,6 +19,7 @@ class _MessagesPageState extends State<MessagesPage> {
   List<dynamic> rows = [];
   final username = TextEditingController();
   String? error;
+  var loading = true;
 
   @override
   void initState() {
@@ -25,53 +28,75 @@ class _MessagesPageState extends State<MessagesPage> {
   }
 
   Future<void> load() async {
+    setState(() => loading = true);
     try {
       final data = await context.read<Session>().conversations();
       if (!mounted) return;
-      setState(() => rows = data);
-    } on ApiException catch (err) {
-      if (mounted) setState(() => error = err.message);
+      setState(() {
+        rows = data;
+        error = null;
+        loading = false;
+      });
+    } catch (err) {
+      if (!mounted) return;
+      setState(() {
+        error = explainError(err);
+        loading = false;
+      });
     }
+  }
+
+  Future<void> openNamed() async {
+    final name = username.text.trim();
+    if (name.isEmpty) return;
+    final chat = await context.read<Session>().openChat(name);
+    if (!mounted) return;
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChatPage(conversation: chat)));
+    await load();
   }
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: username,
-                decoration: const InputDecoration(labelText: 'Message @username'),
-              ),
-            ),
-            IconButton(
-              onPressed: () async {
-                final chat = await context.read<Session>().openChat(username.text.trim());
-                if (!context.mounted) return;
-                await Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => ChatPage(conversation: chat)),
-                );
-                await load();
-              },
-              icon: const Icon(Icons.send),
-            ),
-          ],
-        ),
-        if (error != null) Text(error!),
-        for (final row in rows)
-          ListTile(
-            title: Text('@${(row['peer'] as Map)['username']}'),
-            subtitle: Text(row['lastMessage'] == null ? 'No messages yet' : row['lastMessage']['body'].toString()),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => ChatPage(conversation: Map<String, dynamic>.from(row as Map)),
-              ),
+    return RefreshIndicator(
+      color: ember,
+      onRefresh: load,
+      child: ListView(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(space2),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: username,
+                    decoration: const InputDecoration(hintText: 'Message a username'),
+                    onSubmitted: (_) => openNamed(),
+                  ),
+                ),
+                IconButton(onPressed: openNamed, icon: const Icon(Icons.send)),
+              ],
             ),
           ),
-      ],
+          if (loading) const FeedSkeleton(),
+          if (error != null) ErrorView(message: error!, onRetry: load),
+          if (!loading && error == null && rows.isEmpty) const EmptyView(title: 'No messages'),
+          for (final row in rows)
+            ListTile(
+              leading: UserAvatar(user: Map<String, dynamic>.from(row['peer'] as Map)),
+              title: Text('@${(row['peer'] as Map)['username']}'),
+              subtitle: Text(
+                row['lastMessage'] == null ? 'No messages yet' : row['lastMessage']['body'].toString(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ChatPage(conversation: Map<String, dynamic>.from(row as Map)),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -117,7 +142,7 @@ class _ChatPageState extends State<ChatPage> {
   void _onTyping(dynamic data) {
     final map = Map<String, dynamic>.from(data as Map);
     if (map['conversationId'] == widget.conversation['id'] && mounted) {
-      setState(() => typing = 'typing…');
+      setState(() => typing = 'Typing');
     }
   }
 
@@ -125,6 +150,7 @@ class _ChatPageState extends State<ChatPage> {
   void dispose() {
     socket?.off('message:new', _onMessage);
     socket?.off('typing', _onTyping);
+    body.dispose();
     super.dispose();
   }
 
@@ -140,31 +166,26 @@ class _ChatPageState extends State<ChatPage> {
   @override
   Widget build(BuildContext context) {
     final peer = Map<String, dynamic>.from(widget.conversation['peer'] as Map);
-    final session = context.read<Session>();
+    final session = context.watch<Session>();
+    final meId = session.me?['id'];
     return Scaffold(
       appBar: AppBar(
         title: Text('@${peer['username']}'),
         actions: [
           IconButton(
+            tooltip: 'Audio call',
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => CallPage(
-                  peerName: peer['username'] as String,
-                  type: 'AUDIO',
-                  outgoing: true,
-                ),
+                builder: (_) => CallPage(peerName: peer['username'] as String, type: 'AUDIO', outgoing: true),
               ),
             ),
-            icon: const Icon(Icons.call),
+            icon: const Icon(Icons.call_outlined),
           ),
           IconButton(
+            tooltip: 'Video call',
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => CallPage(
-                  peerName: peer['username'] as String,
-                  type: 'VIDEO',
-                  outgoing: true,
-                ),
+                builder: (_) => CallPage(peerName: peer['username'] as String, type: 'VIDEO', outgoing: true),
               ),
             ),
             icon: const Icon(Icons.videocam_outlined),
@@ -173,31 +194,61 @@ class _ChatPageState extends State<ChatPage> {
       ),
       body: Column(
         children: [
-          if (typing.isNotEmpty) Text(typing),
+          if (typing.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(typing, style: Theme.of(context).textTheme.bodySmall),
+            ),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(space2),
               children: [
                 for (final message in messages)
                   Align(
-                    alignment: (message['sender'] as Map)['id'] == session.me?['id']
-                        ? Alignment.centerRight
-                        : Alignment.centerLeft,
-                    child: Card(child: Padding(padding: const EdgeInsets.all(10), child: Text(message['body'].toString()))),
+                    alignment: (message['sender'] as Map)['id'] == meId ? Alignment.centerRight : Alignment.centerLeft,
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      constraints: const BoxConstraints(maxWidth: 280),
+                      decoration: BoxDecoration(
+                        color: (message['sender'] as Map)['id'] == meId
+                            ? ember
+                            : Theme.of(context).colorScheme.surface,
+                        borderRadius: BorderRadius.circular(8),
+                        border: (message['sender'] as Map)['id'] == meId
+                            ? null
+                            : Border.all(color: Theme.of(context).dividerColor),
+                      ),
+                      child: Text(
+                        message['body'].toString(),
+                        style: TextStyle(
+                          color: (message['sender'] as Map)['id'] == meId ? Colors.white : null,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
                   ),
               ],
             ),
           ),
+          const Hairline(),
           Padding(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.fromLTRB(space2, 8, 4, space2),
             child: Row(
               children: [
-                Expanded(child: TextField(controller: body, decoration: const InputDecoration(hintText: 'Message · বার্তা'))),
+                Expanded(
+                  child: TextField(
+                    controller: body,
+                    decoration: const InputDecoration(hintText: 'Message'),
+                    onChanged: (_) {
+                      session.socket?.emit('typing', {'conversationId': widget.conversation['id']});
+                    },
+                  ),
+                ),
                 IconButton(
                   onPressed: () async {
                     final text = body.text.trim();
                     if (text.isEmpty) return;
-                    session.socket?.emit('typing', {'conversationId': widget.conversation['id']});
                     await session.sendMessage(widget.conversation['id'] as String, text);
                     body.clear();
                     await load();

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -36,7 +37,7 @@ class ApiClient {
       response.headers['authorization'] = 'Bearer $token';
     }
     if (body != null) response.body = jsonEncode(body);
-    final streamed = await response.send();
+    final streamed = await response.send().timeout(const Duration(seconds: 90));
     final text = await streamed.stream.bytesToString();
     dynamic decoded;
     if (text.isNotEmpty) {
@@ -66,4 +67,28 @@ class ApiClient {
     }
     return decoded['url'] as String;
   }
+
+  Future<bool> ping() async {
+    try {
+      final response = await http.get(_uri('/health')).timeout(const Duration(seconds: 90));
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+}
+
+String explainError(Object error) {
+  if (error is ApiException) return error.message;
+  if (error is TimeoutException) {
+    return 'The server is not responding. It may be waking up.';
+  }
+  final text = error.toString();
+  if (text.contains('SocketException') ||
+      text.contains('ClientException') ||
+      text.contains('Failed host lookup') ||
+      text.contains('Connection refused')) {
+    return 'The server is not responding. It may be waking up.';
+  }
+  return 'Request failed.';
 }

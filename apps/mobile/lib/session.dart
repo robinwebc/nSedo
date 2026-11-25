@@ -10,8 +10,10 @@ import 'api.dart';
 
 const defaultApiUrl = String.fromEnvironment(
   'API_URL',
-  defaultValue: 'http://10.0.2.2:4000',
+  defaultValue: 'https://nsedo-api.onrender.com',
 );
+
+enum ServerLink { checking, online, offline }
 const googleServerClientId = String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID');
 
 class Session extends ChangeNotifier {
@@ -28,13 +30,25 @@ class Session extends ChangeNotifier {
   sio.Socket? socket;
   Map<String, dynamic>? incomingCall;
   bool ready = false;
+  ServerLink link = ServerLink.checking;
 
   bool get signedIn => accessToken != null && me != null;
 
   Future<void> boot() async {
+    link = ServerLink.checking;
+    ready = false;
+    notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     apiUrl = prefs.getString('apiUrl') ?? defaultApiUrl;
     api = ApiClient(apiUrl);
+    final online = await api.ping();
+    if (!online) {
+      link = ServerLink.offline;
+      ready = true;
+      notifyListeners();
+      return;
+    }
+    link = ServerLink.online;
     accessToken = await _secure.read(key: 'accessToken');
     refreshToken = await _secure.read(key: 'refreshToken');
     api.token = accessToken;
