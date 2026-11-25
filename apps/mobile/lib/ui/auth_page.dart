@@ -26,11 +26,25 @@ class _AuthPageState extends State<AuthPage> {
   String? availability;
   String? error;
   var busy = false;
+  var codeSent = false;
 
   @override
   void initState() {
     super.initState();
     server.text = context.read<Session>().apiUrl;
+  }
+
+  @override
+  void dispose() {
+    identifier.dispose();
+    password.dispose();
+    username.dispose();
+    displayName.dispose();
+    email.dispose();
+    phone.dispose();
+    code.dispose();
+    server.dispose();
+    super.dispose();
   }
 
   Future<void> checkUsername(String value) async {
@@ -42,9 +56,7 @@ class _AuthPageState extends State<AuthPage> {
       final result = await context.read<Session>().usernameAvailable(value);
       if (!mounted) return;
       setState(() {
-        availability = result['available'] == true
-            ? 'Available'
-            : (result['reason']?.toString() ?? 'Taken');
+        availability = result['available'] == true ? 'Available' : (result['reason']?.toString() ?? 'Taken');
       });
     } catch (_) {}
   }
@@ -67,9 +79,9 @@ class _AuthPageState extends State<AuthPage> {
         });
       } else if (mode == 'password') {
         await session.login(identifier.text.trim(), password.text);
-      } else if (code.text.trim().isEmpty) {
+      } else if (!codeSent || code.text.trim().isEmpty) {
         await session.requestOtp(mode == 'email' ? 'EMAIL' : 'SMS', identifier.text.trim());
-        setState(() => error = 'Code sent. In dev it is printed by the API.');
+        if (mounted) setState(() => codeSent = true);
       } else {
         await session.verifyOtp(
           channel: mode == 'email' ? 'EMAIL' : 'SMS',
@@ -79,10 +91,8 @@ class _AuthPageState extends State<AuthPage> {
           displayName: displayName.text.trim(),
         );
       }
-    } on ApiException catch (err) {
-      setState(() => error = err.message);
     } catch (err) {
-      setState(() => error = err.toString());
+      if (mounted) setState(() => error = explainError(err));
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -104,11 +114,12 @@ class _AuthPageState extends State<AuthPage> {
       final account = await google.authenticate();
       final idToken = account.authentication.idToken;
       if (idToken == null) {
-        throw ApiException(400, 'Google did not return an ID token. Set GOOGLE_SERVER_CLIENT_ID.');
+        throw ApiException(400, 'Google did not return an ID token.');
       }
+      if (!mounted) return;
       await context.read<Session>().google(idToken);
     } catch (err) {
-      setState(() => error = err.toString());
+      if (mounted) setState(() => error = explainError(err));
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -116,97 +127,103 @@ class _AuthPageState extends State<AuthPage> {
 
   @override
   Widget build(BuildContext context) {
+    final mutedColor = Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.62);
     return Scaffold(
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(space3, space4, space3, space3),
           children: [
-            const SizedBox(height: 24),
-            const NsedoMark(size: 64, withWord: true),
-            const SizedBox(height: 8),
-            Text('Say it. বলো।', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 20),
+            const NsedoMark(size: 48, withWord: true),
+            const SizedBox(height: space1),
+            Text('পোস্ট, বার্তা, লাইভ', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: mutedColor)),
+            const SizedBox(height: space3),
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(value: 'password', label: Text('Sign in')),
+                ButtonSegment(value: 'register', label: Text('Create')),
+              ],
+              selected: {mode == 'register' ? 'register' : 'password'},
+              onSelectionChanged: (value) => setState(() {
+                mode = value.first;
+                error = null;
+              }),
+            ),
+            const SizedBox(height: space2),
             Wrap(
               spacing: 8,
               children: [
-                for (final item in ['password', 'register', 'email', 'phone'])
+                if (mode != 'register')
                   ChoiceChip(
-                    label: Text(item == 'password'
-                        ? 'Password'
-                        : item == 'register'
-                            ? 'Register'
-                            : item == 'email'
-                                ? 'Email code'
-                                : 'Phone OTP'),
-                    selected: mode == item,
-                    onSelected: (_) => setState(() => mode = item),
+                    label: const Text('Password'),
+                    selected: mode == 'password',
+                    onSelected: (_) => setState(() => mode = 'password'),
                   ),
+                ChoiceChip(
+                  label: const Text('Email code'),
+                  selected: mode == 'email',
+                  onSelected: (_) => setState(() {
+                    mode = 'email';
+                    codeSent = false;
+                  }),
+                ),
+                ChoiceChip(
+                  label: const Text('Phone code'),
+                  selected: mode == 'phone',
+                  onSelected: (_) => setState(() {
+                    mode = 'phone';
+                    codeSent = false;
+                  }),
+                ),
               ],
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: server,
-              decoration: const InputDecoration(labelText: 'Server URL'),
-            ),
-            const SizedBox(height: 12),
+            const SizedBox(height: space2),
             if (mode == 'password' || mode == 'email' || mode == 'phone')
               TextField(
                 controller: identifier,
                 decoration: InputDecoration(
-                  labelText: mode == 'phone'
-                      ? 'Phone · ফোন'
-                      : mode == 'email'
-                          ? 'Email'
-                          : 'Email, phone, or username',
+                  labelText: mode == 'phone' ? 'Phone' : mode == 'email' ? 'Email' : 'Email, phone, or username',
                 ),
               ),
             if (mode == 'register' || mode == 'email' || mode == 'phone') ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: space2),
               TextField(
                 controller: username,
-                decoration: InputDecoration(
-                  labelText: 'Username',
-                  helperText: availability,
-                ),
+                decoration: InputDecoration(labelText: 'Username', helperText: availability),
                 onChanged: checkUsername,
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: displayName,
-                decoration: const InputDecoration(labelText: 'Display name'),
-              ),
+              const SizedBox(height: space2),
+              TextField(controller: displayName, decoration: const InputDecoration(labelText: 'Display name')),
             ],
             if (mode == 'register') ...[
-              const SizedBox(height: 12),
-              TextField(controller: email, decoration: const InputDecoration(labelText: 'Email')),
-              const SizedBox(height: 12),
-              TextField(controller: phone, decoration: const InputDecoration(labelText: 'Phone')),
+              const SizedBox(height: space2),
+              TextField(controller: email, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'Email')),
+              const SizedBox(height: space2),
+              TextField(controller: phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Phone')),
             ],
             if (mode == 'password' || mode == 'register') ...[
-              const SizedBox(height: 12),
-              TextField(
-                controller: password,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: 'Password'),
-              ),
+              const SizedBox(height: space2),
+              TextField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: 'Password')),
             ],
-            if (mode == 'email' || mode == 'phone') ...[
-              const SizedBox(height: 12),
+            if ((mode == 'email' || mode == 'phone') && codeSent) ...[
+              const SizedBox(height: space2),
               TextField(controller: code, decoration: const InputDecoration(labelText: 'Code')),
             ],
             if (error != null) ...[
-              const SizedBox(height: 12),
-              Text(error!, style: const TextStyle(color: ember)),
+              const SizedBox(height: space2),
+              Text(error!, style: const TextStyle(color: Color(0xFFB42318), fontSize: 13)),
             ],
-            const SizedBox(height: 16),
+            const SizedBox(height: space3),
             FilledButton(
               onPressed: busy ? null : submit,
-              child: Text(busy ? 'Please wait' : 'Continue · চলো'),
+              child: Text(busy ? 'Please wait' : mode == 'register' ? 'Create account' : codeSent ? 'Continue' : mode == 'password' ? 'Sign in' : 'Send code'),
             ),
-            const SizedBox(height: 8),
-            OutlinedButton(
-              onPressed: busy ? null : google,
-              child: const Text('Continue with Google'),
+            const SizedBox(height: space1),
+            OutlinedButton(onPressed: busy ? null : google, child: const Text('Continue with Google')),
+            const SizedBox(height: space3),
+            TextField(
+              controller: server,
+              decoration: const InputDecoration(labelText: 'Server address'),
+              keyboardType: TextInputType.url,
             ),
           ],
         ),

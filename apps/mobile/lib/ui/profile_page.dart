@@ -6,6 +6,7 @@ import '../api.dart';
 import '../session.dart';
 import '../theme.dart';
 import 'call_page.dart';
+import 'widgets.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key, this.username});
@@ -19,8 +20,7 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   Map<String, dynamic>? profile;
   String? error;
-
-  bool get mine => widget.username == null || widget.username == context.read<Session>().me?['username'];
+  var loading = true;
 
   @override
   void initState() {
@@ -32,89 +32,124 @@ class _ProfilePageState extends State<ProfilePage> {
     final session = context.read<Session>();
     final name = widget.username ?? session.me?['username'] as String?;
     if (name == null) return;
+    setState(() => loading = true);
     try {
       final data = name == session.me?['username']
-          ? await session.api.send('GET', '/users/me').then((value) => Map<String, dynamic>.from(value as Map))
+          ? Map<String, dynamic>.from(await session.api.send('GET', '/users/me') as Map)
           : await session.profile(name);
       if (!mounted) return;
-      setState(() => profile = data);
-    } on ApiException catch (err) {
-      if (mounted) setState(() => error = err.message);
+      setState(() {
+        profile = data;
+        error = null;
+        loading = false;
+      });
+    } catch (err) {
+      if (!mounted) return;
+      setState(() {
+        error = explainError(err);
+        loading = false;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final data = profile;
+    final mine = widget.username == null || widget.username == context.watch<Session>().me?['username'];
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profile · প্রোফাইল'),
+        title: const Text('Profile'),
         actions: [
-          if (widget.username == null)
+          if (mine)
             IconButton(
+              tooltip: 'Settings',
               onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsPage())),
               icon: const Icon(Icons.settings_outlined),
             ),
         ],
       ),
-      body: data == null
-          ? Center(child: error == null ? const CircularProgressIndicator() : Text(error!))
-          : ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                const NsedoMark(size: 72),
-                const SizedBox(height: 12),
-                Text(
-                  '${data['displayName']}${data['verifiedBadge'] == true ? ' ✓' : ''}',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                Text('@${data['username']} · ${data['userId']}'),
-                const SizedBox(height: 8),
-                Text(data['bio']?.toString().isNotEmpty == true ? data['bio'].toString() : 'No bio yet.'),
-                Text('Privacy: ${data['privacy']}'),
-                if (data['followerCount'] != null)
-                  Text('${data['followerCount']} followers · ${data['followingCount']} following'),
-                const SizedBox(height: 12),
-                if (widget.username != null && widget.username != context.watch<Session>().me?['username']) ...[
-                  FilledButton(
-                    onPressed: () => context.read<Session>().follow(widget.username!).then((_) => load()),
-                    child: const Text('Follow · ফলো'),
-                  ),
-                  OutlinedButton(
-                    onPressed: () => context.read<Session>().friendRequest(widget.username!),
-                    child: const Text('Friend request'),
-                  ),
-                  OutlinedButton(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => CallPage(peerName: widget.username!, type: 'VIDEO', outgoing: true),
+      body: loading
+          ? const FeedSkeleton()
+          : data == null
+              ? ErrorView(message: error ?? 'Profile unavailable', onRetry: load)
+              : ListView(
+                  children: [
+                    Container(height: 96, color: ink),
+                    Transform.translate(
+                      offset: const Offset(space2, -28),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          UserAvatar(user: data, radius: 32),
+                          const SizedBox(height: space1),
+                          Text(
+                            '${data['displayName'] ?? ''}',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          Text('@${data['username']}  ${data['userId'] ?? ''}', style: Theme.of(context).textTheme.bodySmall),
+                          const SizedBox(height: space1),
+                          Text((data['bio']?.toString().isNotEmpty ?? false) ? data['bio'].toString() : 'No bio'),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${data['privacy'] == 'PRIVATE' ? 'Private' : 'Public'} account',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          if (data['followerCount'] != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: space1),
+                              child: Text('${data['followerCount']} followers   ${data['followingCount']} following'),
+                            ),
+                        ],
                       ),
                     ),
-                    child: const Text('Video call'),
-                  ),
-                  TextButton(
-                    onPressed: () => context.read<Session>().api.send('POST', '/blocks/${widget.username}'),
-                    child: const Text('Block'),
-                  ),
-                  TextButton(
-                    onPressed: () => context.read<Session>().api.send('POST', '/mutes/${widget.username}'),
-                    child: const Text('Mute'),
-                  ),
-                  TextButton(
-                    onPressed: () => context.read<Session>().api.send(
-                      'POST',
-                      '/reports',
-                      body: {
-                        'targetType': 'USER',
-                        'targetId': data['id'],
-                        'reason': 'Reported from the profile screen',
-                      },
-                    ),
-                    child: const Text('Report'),
-                  ),
-                ],
-              ],
-            ),
+                    if (!mine)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: space2),
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            FilledButton(
+                              onPressed: () => context.read<Session>().follow(widget.username!).then((_) => load()),
+                              child: const Text('Follow'),
+                            ),
+                            OutlinedButton(
+                              onPressed: () => context.read<Session>().friendRequest(widget.username!),
+                              child: const Text('Add friend'),
+                            ),
+                            OutlinedButton(
+                              onPressed: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => CallPage(peerName: widget.username!, type: 'VIDEO', outgoing: true),
+                                ),
+                              ),
+                              child: const Text('Video call'),
+                            ),
+                            TextButton(
+                              onPressed: () => context.read<Session>().api.send('POST', '/blocks/${widget.username}'),
+                              child: const Text('Block'),
+                            ),
+                            TextButton(
+                              onPressed: () => context.read<Session>().api.send('POST', '/mutes/${widget.username}'),
+                              child: const Text('Mute'),
+                            ),
+                            TextButton(
+                              onPressed: () => context.read<Session>().api.send(
+                                'POST',
+                                '/reports',
+                                body: {
+                                  'targetType': 'USER',
+                                  'targetId': data['id'],
+                                  'reason': 'Reported from profile',
+                                },
+                              ),
+                              child: const Text('Report'),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
     );
   }
 }
@@ -127,7 +162,7 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  late final server = TextEditingController(text: context.read<Session>().apiUrl);
+  final server = TextEditingController();
   final username = TextEditingController();
   final displayName = TextEditingController();
   final bio = TextEditingController();
@@ -140,6 +175,7 @@ class _SettingsPageState extends State<SettingsPage> {
   void initState() {
     super.initState();
     final me = context.read<Session>().me;
+    server.text = context.read<Session>().apiUrl;
     displayName.text = me?['displayName']?.toString() ?? '';
     bio.text = me?['bio']?.toString() ?? '';
     privateAccount = me?['privacy'] == 'PRIVATE';
@@ -149,81 +185,118 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     final session = context.read<Session>();
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings · সেটিংস')),
+      appBar: AppBar(title: const Text('Settings')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
         children: [
-          TextField(controller: server, decoration: const InputDecoration(labelText: 'Server URL')),
-          const SizedBox(height: 8),
-          FilledButton(
-            onPressed: () async {
-              await session.setApiUrl(server.text);
-              setState(() => message = 'Server saved');
-            },
-            child: const Text('Save server'),
+          const _Heading('Account'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: space2),
+            child: Column(
+              children: [
+                TextField(controller: displayName, decoration: const InputDecoration(labelText: 'Display name')),
+                const SizedBox(height: space2),
+                TextField(controller: bio, decoration: const InputDecoration(labelText: 'Bio')),
+              ],
+            ),
           ),
-          const Divider(),
-          TextField(controller: displayName, decoration: const InputDecoration(labelText: 'Display name')),
-          TextField(controller: bio, decoration: const InputDecoration(labelText: 'Bio')),
           SwitchListTile(
             value: privateAccount,
             title: const Text('Private account'),
-            subtitle: const Text('Only approved followers see posts'),
+            subtitle: const Text('Only approved followers can see posts'),
             onChanged: (value) => setState(() => privateAccount = value),
           ),
-          FilledButton(
-            onPressed: () async {
+          ListTile(
+            title: const Text('Save profile'),
+            onTap: () async {
               await session.updateMe({
                 'displayName': displayName.text.trim(),
                 'bio': bio.text.trim(),
                 'privacy': privateAccount ? 'PRIVATE' : 'PUBLIC',
               });
-              setState(() => message = 'Profile updated');
+              setState(() => message = 'Profile saved');
             },
-            child: const Text('Save profile'),
           ),
-          const Divider(),
-          TextField(controller: username, decoration: const InputDecoration(labelText: 'New username')),
-          OutlinedButton(
-            onPressed: () async {
+          const _Heading('Username'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: space2),
+            child: TextField(controller: username, decoration: const InputDecoration(labelText: 'New username')),
+          ),
+          ListTile(
+            title: const Text('Change username'),
+            subtitle: const Text('Once every 30 days'),
+            onTap: () async {
               try {
                 await session.changeUsername(username.text.trim());
                 setState(() => message = 'Username updated');
-              } on ApiException catch (err) {
-                setState(() => message = err.message);
+              } catch (err) {
+                setState(() => message = explainError(err));
               }
             },
-            child: const Text('Change username (once / 30 days)'),
           ),
-          const Divider(),
-          TextField(controller: nextPassword, obscureText: true, decoration: const InputDecoration(labelText: 'New password')),
-          TextField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: 'Current password')),
-          OutlinedButton(
-            onPressed: () async {
+          const _Heading('Password'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: space2),
+            child: Column(
+              children: [
+                TextField(controller: nextPassword, obscureText: true, decoration: const InputDecoration(labelText: 'New password')),
+                const SizedBox(height: space2),
+                TextField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: 'Current password')),
+              ],
+            ),
+          ),
+          ListTile(
+            title: const Text('Save password'),
+            onTap: () async {
               await session.setPassword(nextPassword.text, current: password.text);
               setState(() => message = 'Password saved');
             },
-            child: const Text('Set password'),
           ),
-          const Divider(),
-          OutlinedButton(
-            onPressed: () async {
+          const _Heading('Server'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: space2),
+            child: TextField(controller: server, decoration: const InputDecoration(labelText: 'Server address')),
+          ),
+          ListTile(
+            title: const Text('Save server'),
+            onTap: () async {
+              await session.setApiUrl(server.text);
+              setState(() => message = 'Server saved');
+            },
+          ),
+          const _Heading('Data'),
+          ListTile(
+            title: const Text('Download my data'),
+            onTap: () async {
               final data = await session.exportData();
               if (!context.mounted) return;
               await SharePlus.instance.share(ShareParams(text: session.pretty(data)));
             },
-            child: const Text('Download my data'),
           ),
-          TextButton(
-            onPressed: () async {
-              await session.deleteAccount(password.text);
-            },
-            child: const Text('Delete my account'),
+          ListTile(
+            title: const Text('Delete account'),
+            onTap: () => session.deleteAccount(password.text),
           ),
-          TextButton(onPressed: session.logout, child: const Text('Log out')),
-          if (message != null) Text(message!),
+          ListTile(title: const Text('Log out'), onTap: session.logout),
+          if (message != null)
+            Padding(
+              padding: const EdgeInsets.all(space2),
+              child: Text(message!),
+            ),
         ],
       ),
+    );
+  }
+}
+
+class _Heading extends StatelessWidget {
+  const _Heading(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(space2, space3, space2, space1),
+      child: Text(text, style: Theme.of(context).textTheme.labelLarge?.copyWith(color: ember)),
     );
   }
 }

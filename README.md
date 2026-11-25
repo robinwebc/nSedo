@@ -75,10 +75,10 @@ The site is at http://localhost:3000 (landing, sign-in, feed, profile, `/privacy
 ```bash
 cd apps/mobile
 flutter pub get
-flutter build apk --release --dart-define=API_URL=http://10.0.2.2:4000
+flutter build apk --release --dart-define=API_URL=https://nsedo-api.onrender.com
 ```
 
-`10.0.2.2` is the Android emulator's alias for the host machine. Change the URL in the app's settings screen for a device or a hosted API. The release APK is debug-signed so it can be installed for testing.
+The built-in default is `https://nsedo-api.onrender.com`. The first request can take about a minute while the server wakes. Change the address in the app if you run the API yourself. The release APK is debug-signed so it can be installed for testing.
 
 Screens: Home (হোম), Search (খোঁজ), Live (লাইভ), Alerts (খবর), Chat (বার্তা), plus profile, settings, calls, and live rooms.
 

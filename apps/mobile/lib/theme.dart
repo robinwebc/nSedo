@@ -5,39 +5,130 @@ const ink = Color(0xFF14202B);
 const seed = Color(0xFFF4C95D);
 const mist = Color(0xFFF6F3EE);
 const pine = Color(0xFF1F6F5B);
+const line = Color(0xFFE4DED4);
+const muted = Color(0xFF5C6770);
+
+const space1 = 8.0;
+const space2 = 16.0;
+const space3 = 24.0;
+const space4 = 32.0;
+const space5 = 40.0;
+const space6 = 48.0;
 
 ThemeData nsedoTheme(Brightness brightness) {
   final dark = brightness == Brightness.dark;
-  final scheme = ColorScheme.fromSeed(
-    seedColor: ember,
+  final surface = dark ? const Color(0xFF1B242C) : Colors.white;
+  final background = dark ? ink : mist;
+  final onSurface = dark ? mist : ink;
+  final scheme = ColorScheme(
     brightness: brightness,
     primary: ember,
-    surface: dark ? const Color(0xFF1A222B) : Colors.white,
+    onPrimary: Colors.white,
+    secondary: pine,
+    onSecondary: Colors.white,
+    error: const Color(0xFFB42318),
+    onError: Colors.white,
+    surface: surface,
+    onSurface: onSurface,
   );
-  return ThemeData(
+  final base = ThemeData(
     useMaterial3: true,
+    brightness: brightness,
     colorScheme: scheme,
-    scaffoldBackgroundColor: dark ? ink : mist,
+    scaffoldBackgroundColor: background,
+    dividerColor: dark ? const Color(0xFF2C3842) : line,
+    splashFactory: InkRipple.splashFactory,
+  );
+  return base.copyWith(
+    textTheme: _type(base.textTheme, onSurface),
     appBarTheme: AppBarTheme(
-      backgroundColor: dark ? ink : mist,
-      foregroundColor: dark ? mist : ink,
+      backgroundColor: background,
+      foregroundColor: onSurface,
       elevation: 0,
+      scrolledUnderElevation: 0,
+      centerTitle: false,
+      titleTextStyle: TextStyle(
+        color: onSurface,
+        fontSize: 20,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.2,
+      ),
     ),
     inputDecorationTheme: InputDecorationTheme(
+      isDense: true,
       filled: true,
-      fillColor: dark ? const Color(0xFF24303A) : Colors.white,
+      fillColor: surface,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      labelStyle: TextStyle(color: dark ? const Color(0xFFB7C0C7) : muted, fontSize: 13),
+      hintStyle: TextStyle(color: dark ? const Color(0xFF8E99A1) : const Color(0xFF7A848C)),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide.none,
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(color: dark ? const Color(0xFF2C3842) : line),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide(color: dark ? const Color(0xFF2C3842) : line),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: ember, width: 1.5),
       ),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         backgroundColor: ember,
         foregroundColor: Colors.white,
-        shape: const StadiumBorder(),
+        minimumSize: const Size(0, 44),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
       ),
     ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: onSurface,
+        minimumSize: const Size(0, 44),
+        side: BorderSide(color: dark ? const Color(0xFF2C3842) : line),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+      ),
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      height: 64,
+      backgroundColor: surface,
+      indicatorColor: ember.withValues(alpha: 0.14),
+      labelTextStyle: WidgetStateProperty.resolveWith((states) {
+        final selected = states.contains(WidgetState.selected);
+        return TextStyle(
+          fontSize: 11,
+          fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+          color: selected ? ember : (dark ? const Color(0xFFB7C0C7) : muted),
+        );
+      }),
+      iconTheme: WidgetStateProperty.resolveWith((states) {
+        final selected = states.contains(WidgetState.selected);
+        return IconThemeData(
+          size: 22,
+          color: selected ? ember : (dark ? const Color(0xFFB7C0C7) : muted),
+        );
+      }),
+    ),
+    listTileTheme: const ListTileThemeData(
+      contentPadding: EdgeInsets.symmetric(horizontal: 16),
+      minVerticalPadding: 8,
+    ),
+  );
+}
+
+TextTheme _type(TextTheme base, Color color) {
+  return base.copyWith(
+    headlineMedium: TextStyle(fontSize: 28, height: 1.2, fontWeight: FontWeight.w700, color: color, letterSpacing: -0.4),
+    titleLarge: TextStyle(fontSize: 20, height: 1.25, fontWeight: FontWeight.w700, color: color, letterSpacing: -0.2),
+    titleMedium: TextStyle(fontSize: 16, height: 1.3, fontWeight: FontWeight.w600, color: color),
+    bodyLarge: TextStyle(fontSize: 16, height: 1.4, fontWeight: FontWeight.w400, color: color),
+    bodyMedium: TextStyle(fontSize: 15, height: 1.4, fontWeight: FontWeight.w400, color: color),
+    bodySmall: TextStyle(fontSize: 13, height: 1.35, fontWeight: FontWeight.w400, color: color),
+    labelLarge: TextStyle(fontSize: 13, height: 1.2, fontWeight: FontWeight.w600, color: color),
   );
 }
 
@@ -54,27 +145,28 @@ class NsedoMark extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         color: ink,
-        borderRadius: BorderRadius.circular(size * 0.28),
+        borderRadius: BorderRadius.circular(size * 0.22),
+        border: Border.all(color: mist.withValues(alpha: 0.18)),
       ),
+      alignment: Alignment.center,
       child: Stack(
+        alignment: Alignment.center,
         children: [
-          Center(
-            child: Text(
-              'n',
-              style: TextStyle(
-                color: ember,
-                fontSize: size * 0.62,
-                fontWeight: FontWeight.w800,
-                height: 1,
-              ),
+          Text(
+            'n',
+            style: TextStyle(
+              color: ember,
+              fontSize: size * 0.58,
+              fontWeight: FontWeight.w800,
+              height: 1,
             ),
           ),
           Positioned(
-            right: size * 0.12,
-            top: size * 0.12,
+            right: size * 0.14,
+            top: size * 0.14,
             child: Container(
-              width: size * 0.16,
-              height: size * 0.16,
+              width: size * 0.14,
+              height: size * 0.14,
               decoration: const BoxDecoration(color: seed, shape: BoxShape.circle),
             ),
           ),
@@ -86,9 +178,21 @@ class NsedoMark extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         mark,
-        const SizedBox(width: 8),
+        SizedBox(width: size * 0.28),
         Text('nSedo', style: Theme.of(context).textTheme.titleLarge),
       ],
     );
   }
+}
+
+String shortTime(dynamic value) {
+  final parsed = DateTime.tryParse(value?.toString() ?? '');
+  if (parsed == null) return '';
+  final delta = DateTime.now().difference(parsed.toLocal());
+  if (delta.inMinutes < 1) return 'now';
+  if (delta.inHours < 1) return '${delta.inMinutes}m';
+  if (delta.inDays < 1) return '${delta.inHours}h';
+  if (delta.inDays < 7) return '${delta.inDays}d';
+  final local = parsed.toLocal();
+  return '${local.month}/${local.day}';
 }
