@@ -1,0 +1,42 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: nsedo
+      POSTGRES_PASSWORD: nsedo
+      POSTGRES_DB: nsedo
+    ports:
+      - "5432:5432"
+    volumes:
+      - nsedo_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nsedo -d nsedo"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.api
+    env_file:
+      - ../../apps/api/.env.example
+    environment:
+      DATABASE_URL: postgresql://nsedo:nsedo@postgres:5432/nsedo
+      JWT_SECRET: dev-only-change-me
+      PORT: "4000"
+      PUBLIC_BASE_URL: http://localhost:4000
+      WEB_URL: http://localhost:3000
+      ADMIN_EMAILS: robinwebc@gmail.com
+      SMS_PROVIDER: console
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - nsedo_uploads:/app/uploads
+
+volumes:
+  nsedo_pg:
+  nsedo_uploads:
